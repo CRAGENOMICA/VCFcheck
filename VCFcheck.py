@@ -4,9 +4,9 @@ import time
 import gzip
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import feather
+#import seaborn as sns
+#import matplotlib.pyplot as plt
+#import feather
 from scipy.stats import chisquare
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -15,13 +15,13 @@ import dash
 from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_table_experiments as dt
+#import dash_table_experiments as dt
 import dash_table
 from plotly.offline import plot
 import plotly.figure_factory as ff
 import plotly.graph_objs as go
 #from flask_caching import Cache
-import multiprocessing as mp
+#import multiprocessing as mp
 
 
 #os.chdir("/home/jordi/Desktop/VCFcheck")
@@ -39,8 +39,13 @@ def read_header(path):
     
     '''Returns the header of the VCF'''
     
-    with open(path, 'r') as f:
-        header = [l.rstrip() for l in f if l.startswith('##')]
+    if path.endswith('.gz'):
+        f = gzip.open(path, 'rt')
+    else:
+        f = open(path, 'r')
+
+    #with gzip.open(path, 'r', encoding='utf-8') as f:
+    header = [l.rstrip() for l in f if l.startswith('##')]
     
     contig = {}
     info_fields = []
@@ -69,13 +74,19 @@ def read_header(path):
 def read_vcf(path):
 
     '''Returns the VCF without header as DataFrame of pandas'''
-
+    print(path)
     dict_dtypes = {}
 
-    with open(path, 'r') as f:
-        lines = [l for l in f if not l.startswith('##')]
+    if path.endswith('.gz'):
+        f = gzip.open(path, 'rt')
+    else:
+        f = open(path, 'r')
+
+    #with gzip.open(path, 'r', encoding='utf-8') as f:
+    lines = [l for l in f if not l.startswith('##')]
 
     for c in lines[0].split('\t'):
+        print(c)
         c = c.rstrip('\n')
         if c == 'POS':
             dict_dtypes[c] = 'int'
@@ -609,8 +620,10 @@ def draw_inbreed(plot,table,pops):
               Output('output-samples', 'children'),
               Output('sliderDP', 'min'),
               Output('sliderDP', 'max'),
+              Output('sliderDP', 'disabled'),
               Output('sliderMQ', 'min'),
               Output('sliderMQ', 'max'),
+              Output('sliderMQ', 'disabled'),
               Output('sliderMiss', 'min'),
               Output('sliderMiss', 'max')],
               [Input('radio-typeSNP', 'value')],
@@ -689,6 +702,7 @@ def update_nameoutput(type_snps,filename):
         for s in samples:
             colname = s + '_DP'
             if colname in df_filt.columns:
+                disableDP = False
                 minDP_f = minDP_i
                 maxDP_f = maxDP_i
                 minDP = df_filt[colname].min()
@@ -697,13 +711,17 @@ def update_nameoutput(type_snps,filename):
                     minDP_f = minDP
                 if maxDP > maxDP_f:
                     maxDP_f = maxDP
+            else:
+                disableDP = True
 
         if 'MQ' in df_filt.columns:
             minMQ = df_filt.MQ.min()
             maxMQ = df_filt.MQ.max()
+            disableMQ = False
         else:
             minMQ = 0
             maxMQ = 0
+            disableMQ = True
 
         df_filt['Missing'] = missing_snp(df_filt, samples)
         minMiss = df_filt.Missing.min()
@@ -715,7 +733,7 @@ def update_nameoutput(type_snps,filename):
         endtime = time.time()
         print('6: ' + str(endtime-starttime))
 
-        return filename, df_json, samples, minDP_f, maxDP_f, minMQ, maxMQ, minMiss, maxMiss#, generate_table(df.head(50))
+        return filename, df_json, samples, minDP_f, maxDP_f, disableDP, minMQ, maxMQ, disableMQ, minMiss, maxMiss#, generate_table(df.head(50))
 
 # Upload Poplist name
 @app.callback(Output('output-popname', 'children'),
@@ -857,7 +875,7 @@ def load_distribution_graph(plot, jsonified_dataframe, valueDP, valueMQ, valueMi
 
             vcf_samples = vcf_samples.T
 
-            reffreq = vcf_samples.notnull().sum()/len(vcf_samples.notnull())
+            reffreq = vcf_samples.sum()/len(samples)
 
             del vcf_samples
 
