@@ -16,58 +16,20 @@ A tool for VCF files diagnostics
 
 #### Pre-install:
 1. Create virtual environment:
-
-
-```python
 conda create --name vcfcheck-app python=3.7
-```
-
-
-      File "<ipython-input-1-d8bc2ee765bf>", line 1
-        conda create --name vcfcheck-app python=3.7
-                   ^
-    SyntaxError: invalid syntax
-
-
-
 2. Activate virtual environment:
-
-
-```python
 source vcfcheck-app/bin/activate
-```
-
 3. Install dependencies:
-
-
-```python
 pip install -r requirements.txt
-```
-
 #### Execute the program
 1. Activate virtual environment:
-
-
-```python
 source vcfcheck-app/bin/activate
-```
-
 2. Execute program
-
-
-```python
 python VCFcheck.py
-```
-
 3. Copy url on the web browser (http://0.0.0.0:8050/)
 
 #### Exit from the virtual environment:
-
-
-```python
 deactivate
-```
-
 ### Usage
 
 As input, the software requires a (compressed or uncompressed) VCF file:
@@ -110,8 +72,3 @@ SAMPLE11	POP3
 When the inputs are uploaded, we have to select the type of mutations that we want to. Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
 
 Once the table is generated, we can perform different plots and analysis by its selection in the dropdown and download the filtered VCF using the Download button.
-
-
-```python
-
-```
