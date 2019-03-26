@@ -18,30 +18,60 @@ A tool for VCF files diagnostics
 
 1. Create virtual environment:
 
+
+
+```python
 conda create --name vcfcheck-app python=3.7
+```
+
 
 2. Activate virtual environment:
 
+
+
+```python
 source vcfcheck-app/bin/activate
+```
+
 
 3. Install dependencies:
 
+
+
+```python
 pip install -r requirements.txt
+```
+
 #### Execute the program
 
 1. Activate virtual environment:
 
+
+
+```python
 source vcfcheck-app/bin/activate
+```
+
 
 2. Execute program:
 
+
+
+```python
 python VCFcheck.py
+```
+
 
 3. Copy url on the web browser (http://0.0.0.0:8050/)
 
 
 #### Exit from the virtual environment:
+
+
+```python
 deactivate
+```
+
 ### Usage
 
 As input, the software requires a (compressed or uncompressed) VCF file:
