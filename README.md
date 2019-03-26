@@ -18,67 +18,37 @@ A tool for VCF files diagnostics
 
 1. Create virtual environment:
 
-
-
-```python
-conda create --name vcfcheck-app python=3.7
-```
-
+```conda create --name vcfcheck-app python=3.7```
 
 2. Activate virtual environment:
 
-
-
-```python
-source vcfcheck-app/bin/activate
-```
-
+```source vcfcheck-app/bin/activate```
 
 3. Install dependencies:
 
-
-
-```python
-pip install -r requirements.txt
-```
+```pip install -r requirements.txt```
 
 #### Execute the program
 
 1. Activate virtual environment:
 
-
-
-```python
-source vcfcheck-app/bin/activate
-```
-
+```source vcfcheck-app/bin/activate```
 
 2. Execute program:
 
-
-
-```python
-python VCFcheck.py
-```
-
+```python VCFcheck.py```
 
 3. Copy url on the web browser (http://0.0.0.0:8050/)
 
-
 #### Exit from the virtual environment:
 
-
-```python
-deactivate
-```
+```deactivate```
 
 ### Usage
 
 As input, the software requires a (compressed or uncompressed) VCF file:
 
-
-
-```python
+```
 ##fileformat=VCFv4.2
 ##FILTER=<ID=PASS,Description="All filters passed">
 ##contig=<ID=1,length=315321322>
@@ -105,12 +75,9 @@ As input, the software requires a (compressed or uncompressed) VCF file:
 1       22086814        .       A       G       177     PASS    DP=7;VDB=0.86172;SGB=-0.636426;MQSB=1;MQ0F=0;AC=2;AN=2;DP4=0,0,5,2;MQ=60        GT:PL:DP        1/1:204,21,0:7
 ```
 
-
 As optional input, it is possible to upload a file with all the samples in a column and another column with the populations to which each sample belongs (separated by tab).
 
-
-
-```python
+```
 SAMPLE1	POP1
 SAMPLE2	POP1
 SAMPLE3	POP1
@@ -123,7 +90,6 @@ SAMPLE9	POP3
 SAMPLE10	POP3
 SAMPLE11	POP3
 ```
-
 
 When the inputs are uploaded, we have to select the type of mutations that we want to. Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
 
