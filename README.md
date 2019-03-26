@@ -16,15 +16,20 @@ A tool for VCF files diagnostics
 
 #### Pre-install:
 1. Create virtual environment:
+
 conda create --name vcfcheck-app python=3.7
 2. Activate virtual environment:
+
 source vcfcheck-app/bin/activate
 3. Install dependencies:
+
 pip install -r requirements.txt
 #### Execute the program
 1. Activate virtual environment:
+
 source vcfcheck-app/bin/activate
-2. Execute program
+2. Execute program:
+
 python VCFcheck.py
 3. Copy url on the web browser (http://0.0.0.0:8050/)
 
@@ -33,7 +38,7 @@ deactivate
 ### Usage
 
 As input, the software requires a (compressed or uncompressed) VCF file:
-# fileformat=VCFv4.2
+##fileformat=VCFv4.2
 ##FILTER=<ID=PASS,Description="All filters passed">
 ##contig=<ID=1,length=315321322>
 ##contig=<ID=2,length=162569375>
