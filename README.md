@@ -46,6 +46,9 @@ deactivate
 
 As input, the software requires a (compressed or uncompressed) VCF file:
 
+
+
+```python
 ##fileformat=VCFv4.2
 ##FILTER=<ID=PASS,Description="All filters passed">
 ##contig=<ID=1,length=315321322>
@@ -70,9 +73,14 @@ As input, the software requires a (compressed or uncompressed) VCF file:
 1       19562975        .       A       .       .       PASS    END=19563008    GT      0/0
 1       21407709        .       A       T       118     PASS    DP=7;VDB=0.788273;SGB=-0.590765;MQSB=0.5;MQ0F=0;AC=2;AN=2;DP4=0,0,2,3;MQ=53     GT:PL:DP        1/1:145,15,0:5
 1       22086814        .       A       G       177     PASS    DP=7;VDB=0.86172;SGB=-0.636426;MQSB=1;MQ0F=0;AC=2;AN=2;DP4=0,0,5,2;MQ=60        GT:PL:DP        1/1:204,21,0:7
+```
+
 
 As optional input, it is possible to upload a file with all the samples in a column and another column with the populations to which each sample belongs (separated by tab).
 
+
+
+```python
 SAMPLE1	POP1
 SAMPLE2	POP1
 SAMPLE3	POP1
@@ -84,6 +92,8 @@ SAMPLE8	POP3
 SAMPLE9	POP3
 SAMPLE10	POP3
 SAMPLE11	POP3
+```
+
 
 When the inputs are uploaded, we have to select the type of mutations that we want to. Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
 
