@@ -399,6 +399,7 @@ app.layout = html.Div([
             id='radio-typeSNP',
             options=[
                 {'label': 'All positions', 'value': 'all'},
+                {'label': 'SNPs and INDELs', 'value': 'snpindel'},
                 {'label': 'SNPs', 'value': 'snps'},
                 {'label': 'Biallelic SNPs', 'value': 'biallelic'},
                 {'label': 'Multiallelic SNPs', 'value': 'multiallelic'},
@@ -644,14 +645,14 @@ def update_nameoutput(type_snps,filename):
 
     if (filename is not None) and (type_snps is not None):
 
-        #starttime = time.time()
+        starttime = time.time()
 
         ## Read the input VCF file (mutations and header separately)
         df = read_vcf(filename)
         contig, info_fields, genotype_fields, filters_fields, header = read_header(filename)
 
-        #endtime = time.time()
-        #print('1: ' + str(endtime-starttime))
+        endtime = time.time()
+        print('1: ' + str(endtime-starttime))
 
         ## Obtain a list of the VCF samples
         samples = obtain_samples(df)
@@ -663,11 +664,16 @@ def update_nameoutput(type_snps,filename):
         df_filt = {}
         if type_snps == 'all':
             df_filt = df
+            df_filt.drop('END', axis=1, inplace=True)
+            df_filt.drop('INDEL', axis=1, inplace=True)
+        elif type_snps == 'snpindel':
+            df_filt = df
             if not df_filt.empty:
                 add_genotype_cols(df_filt, genotype_fields, samples)
                 add_info_cols(df_filt, info_fields)
             df_filt.drop('END', axis=1, inplace=True)
             df_filt.drop('INDEL', axis=1, inplace=True)
+
         elif type_snps == 'snps':
             df_filt = table_snps(df)
             if not df_filt.empty:
