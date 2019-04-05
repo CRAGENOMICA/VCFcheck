@@ -501,7 +501,11 @@ app.layout = html.Div([
     ## Horizontal line:
     html.Hr(),
 
+    ## Summary of VCF (number of mutations, missing per population and average depth per coverage
     html.Div(id='summary'),
+
+    ## Horizontal line:
+    html.Hr(),
 
 ])
 
@@ -701,9 +705,12 @@ def draw_inbreed(plot,table,pops):
               Output('sliderDP', 'min'),
               Output('sliderDP', 'max'),
               Output('sliderDP', 'disabled'),
+              Output('sliderDP', 'value'),
               Output('sliderMQ', 'min'),
               Output('sliderMQ', 'max'),
               Output('sliderMQ', 'disabled'),
+              Output('sliderMQ', 'value'),
+              Output('sliderMiss', 'max'),
               Output('sliderMiss', 'value'),
               Output('nsnpsbi', 'children'),
               Output('nsnpsmulti', 'children'),
@@ -801,6 +808,7 @@ def update_nameoutput(filename, type_snps = 'all'):
                     maxDP_f = maxDP
             else:
                 disableDP = True
+        valueDP = [minDP_f,maxDP_f]
 
         if 'MQ' in df_filt.columns:
             minMQ = df_filt.MQ.min()
@@ -810,16 +818,17 @@ def update_nameoutput(filename, type_snps = 'all'):
             minMQ = 0
             maxMQ = 0
             disableMQ = True
+        valueMQ = [minMQ,maxMQ]
 
         df_filt['Missing'] = missing_snp(df_filt, samples)
         maxMiss = df_filt.Missing.max()
-
+        valueMiss = maxMiss
         ## Convert the Pandas DataFrame into Json table to the transport of the table to other callback
         df_json = df_filt.to_json(date_format='iso', orient='table')
 
         #feather.write_dataframe(df_filt, 'df.feather')
 
-        return 'Input VCF file: ' + filename, df_json, samples, header, minDP_f, maxDP_f, disableDP, minMQ, maxMQ, disableMQ, maxMiss, nSNPsbi, nSNPsmulti, nINDELs, nROHs
+        return 'Input VCF file: ' + filename, df_json, samples, header, minDP_f, maxDP_f, disableDP, valueDP, minMQ, maxMQ, disableMQ, valueMQ, maxMiss, valueMiss, nSNPsbi, nSNPsmulti, nINDELs, nROHs
 
 
 ## Upload Poplist name:
@@ -899,7 +908,7 @@ def newline_summary_miss(pop, number):
               Input('nrohs', 'children')])
 def summary_stats(jsonified_dataframe,popfile,samples,nsnpsbi,nsnpsmulti,nindels,nrohs):
 
-    if jsonified_dataframe and samples and nsnpsbi and nsnpsmulti and nindels and nrohs:
+    if jsonified_dataframe and samples:
 
         df = pd.read_json(jsonified_dataframe, orient='table')
 
@@ -918,7 +927,7 @@ def summary_stats(jsonified_dataframe,popfile,samples,nsnpsbi,nsnpsmulti,nindels
             avg_dp_gt = ''
             for g in list_gt:
                 if avg_dp_gt == '':
-                    avg_dp_gt = 'Average depth by genotype: ' + str(round(sum(list_gt[g])/len(list_gt[g]),1)) + ' for ' + g
+                    avg_dp_gt = '- Average depth by genotype: ' + str(round(sum(list_gt[g])/len(list_gt[g]),1)) + ' for ' + g
                 else:
                     avg_dp_gt += ', ' + str(round(sum(list_gt[g])/len(list_gt[g]),1)) + ' for ' + g
 
@@ -933,27 +942,67 @@ def summary_stats(jsonified_dataframe,popfile,samples,nsnpsbi,nsnpsmulti,nindels
                 pops = tablepop['Population'].unique()
     
                 avg_miss = ''
+                gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3','./.']
+                list_dict_perc_gt = []
                 for p in pops:
+
+                    dict_perc_gt = {}
+                    dict_perc_gt['Population'] = p
+
                     if avg_miss == '':
-                        avg_miss = 'Average missing per population: ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
+                        avg_miss = '- Average missing per population: ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
                     else:
                         avg_miss += ', ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
+
+                    samples_p = tablepop[tablepop['Population'] == p]['Individual']
+                    ngt = {}
+                    count_gt = {}
+                    total_gt = 0
+                    for s in samples_p:
+                        ngt[s] = df.groupby([s + '_GT'])[s + '_GT'].count()
+                        total_gt += ngt[s].sum()
+                        for gt in gtposib:
+                            if gt in ngt[s]:
+                                if gt in count_gt:
+                                    count_gt[gt] += ngt[s][gt]
+                                else:
+                                    count_gt[gt] = ngt[s][gt]
+                    for g in gtposib:
+                        if g in count_gt:
+                            dict_perc_gt[g] = str(round((count_gt[g]/total_gt)*100,2)) + '%'
+                        else:
+                            dict_perc_gt[g] = str(0.00) + '%'
+
+                    list_dict_perc_gt.append(dict_perc_gt)
+
                 return html.Div([
-                            html.Div('Number of biallelic SNPs = {}'.format(nsnpsbi)),
-                            html.Div('Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
-                            html.Div('Number of INDELs = {}'.format(nindels)),
-                            html.Div('Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div(avg_miss, style={'marginTop':'1em'}),
-                            html.Div(avg_dp_gt)
+                            html.Div(avg_dp_gt),
+                            html.Div('- Proportion of genotypes per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=list_dict_perc_gt,
+                                    columns=[{'name': i, 'id': i} for i in list_dict_perc_gt[0].keys()],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '800',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginLeft':'2em'})
                 ])
     
             else:
                 return html.Div([
-                            html.Div('Number of biallelic SNPs = {}'.format(nsnpsbi)),
-                            html.Div('Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
-                            html.Div('Number of INDELs = {}'.format(nindels)),
-                            html.Div('Number of homozigous positions = {}'.format(nrohs)),
-                            html.Div(avg_dp_gt)
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div(avg_dp_gt, style={'marginTop':'1em'})
                 ])
 
         else:
@@ -969,25 +1018,67 @@ def summary_stats(jsonified_dataframe,popfile,samples,nsnpsbi,nsnpsmulti,nindels
                 pops = tablepop['Population'].unique()
     
                 avg_miss = ''
+                gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3','./.']
+                list_dict_perc_gt = []
                 for p in pops:
+
+                    dict_perc_gt = {}
+                    dict_perc_gt['Population'] = p
+
                     if avg_miss == '':
-                        avg_miss = 'Average missing per population: ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
+                        avg_miss = '- Average missing per population: ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
                     else:
                         avg_miss += ', ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
+
+                    samples_p = tablepop[tablepop['Population'] == p]['Individual']
+                    ngt = {}
+                    count_gt = {}
+                    total_gt = 0
+                    for s in samples_p:
+                        ngt[s] = df.groupby([s])[s].count()
+                        total_gt += ngt[s].sum()
+                        print(s,total_gt)
+                        for gt in gtposib:
+                            if gt in ngt[s]:
+                                if gt in count_gt:
+                                    count_gt[gt] += ngt[s][gt]
+                                else:
+                                    count_gt[gt] = ngt[s][gt]
+                    for g in gtposib:
+                        if g in count_gt:
+                            dict_perc_gt[g] = str(round((count_gt[g]/total_gt)*100,2)) + '%'
+                        else:
+                            dict_perc_gt[g] = str(0.00) + '%'
+
+                    list_dict_perc_gt.append(dict_perc_gt)
+
+
                 return html.Div([
-                            html.Div('Number of biallelic SNPs = {}'.format(nsnpsbi)),
-                            html.Div('Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
-                            html.Div('Number of INDELs = {}'.format(nindels)),
-                            html.Div('Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div(avg_miss, style={'marginTop':'1em'}),
+                            html.Div('- Proportion of genotypes per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=list_dict_perc_gt,
+                                    columns=[{'name': i, 'id': i} for i in list_dict_perc_gt[0].keys()],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '800',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginLeft':'2em'})
                 ])
     
             else:
                 return html.Div([
-                            html.Div('Number of biallelic SNPs = {}'.format(nsnpsbi)),
-                            html.Div('Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
-                            html.Div('Number of INDELs = {}'.format(nindels)),
-                            html.Div('Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                 ])
 
 ## Download the filtered VCF:
