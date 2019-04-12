@@ -183,8 +183,6 @@ def add_info_cols(table, info_fields):
             table[i] = table.INFO.str.extract(string1, expand=False).str.extract(string2,expand=False).str.replace(";", "")
         if (i != 'INDEL') and (i != 'DP4'):
             table[i] = table.INFO.str.extract(string1, expand=False).str.extract(string2,expand=False).str.replace(";", "").astype(float)
-        if table[i].notnull().sum() == 0:
-            table.drop(i, axis=1, inplace=True)
 
     table.fillna(value=pd.np.nan, inplace=True)
     #table.drop('INFO', axis=1, inplace=True)
@@ -201,10 +199,11 @@ def add_genotype_cols(table, gt_fields, samples):
         colDP = s + '_DP'
         df_genotype = table[s].str.split(':', expand=True)
         if len(df_genotype.columns) == 3:
-            df_genotype.fillna(value=0, inplace=True)
+            df_genotype.fillna(value='-1', inplace=True)
             table[colGT] = df_genotype[0].astype('category')
             #table[colPL] = df_genotype[1]
             table[colDP] = df_genotype[2].astype(int)
+            table[colDP].replace(-1, pd.np.nan, inplace=True)
             #table.drop(s, axis=1, inplace=True)
             #table.drop('FORMAT', axis=1, inplace=True)
         #else:
@@ -311,25 +310,6 @@ def number_roh_positions(table):
 # Dashboard Layout / View
 #########################
 
-def dropdown_options():
-
-    '''Possible plots to perform'''
-
-    plots = ["Missing by Population", 
-             "Missing by SNP", 
-             "Reference allele frequency",
-             "Depth by individual",
-             "Depth by genotype",
-             "Principal Component Analyisis (PCA)",
-             "Hardy-Weinberg test",
-             "Inbreeding coefficient"]
-
-    plots_options = (
-        [{'label': p, 'value': p}
-         for p in plots]
-    )
-    return plots_options
-
 ## Set up Dashboard and create layout:
 app = dash.Dash()
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
@@ -344,9 +324,10 @@ app.layout = html.Div([
 
     ## Page Header
     html.Div([
-        html.H2(
+        html.H3(
             'VCFcheck: A tool for VCF files diagnostics',
-            id='title'
+            id='title',
+            style={'font-weight': 'bold'}
         )
     ]),
 
@@ -359,14 +340,15 @@ app.layout = html.Div([
                 html.A('Select the VCF file')
             ]),
             style={
-                'width': '15%',
+                'width': '12%',
                 'height': '60px',
                 'lineHeight': '60px',
                 'borderWidth': '1px',
                 'borderStyle': 'dashed',
                 'borderRadius': '5px',
                 'textAlign': 'center',
-                'margin': '10px'
+                'margin': '10px',
+                'background-color':'rgb(245,245,245)'
             },
             multiple=False, # Don't allow multiple files to be uploaded
             className='three columns',
@@ -379,14 +361,15 @@ app.layout = html.Div([
                 html.A('Select the Population list')
             ]),
             style={
-                'width': '15%',
+                'width': '12%',
                 'height': '60px',
                 'lineHeight': '60px',
                 'borderWidth': '1px',
-                'borderStyle': 'dashed',
+                'borderStyle': 'dashed',#'solid'
                 'borderRadius': '5px',
                 'textAlign': 'center',
-                'margin': '10px'
+                'margin': '10px',
+                'background-color':'rgb(245,245,245)'
             },
             multiple=False, # Don't allow multiple files to be uploaded
             className='three columns',
@@ -413,11 +396,12 @@ app.layout = html.Div([
             dcc.RangeSlider(
                 id='sliderDP',
                 min=0,
-                max=100,
+                max=0,
                 step=1,
-                value=[0,100],
+                value=[0,0],
                 updatemode='drag',
                 className='two columns',
+                disabled=True
             ),
             html.Div(id='output-container-range-sliderDP', className='three columns')
         ], style={'padding': 20}),
@@ -427,11 +411,12 @@ app.layout = html.Div([
             dcc.RangeSlider(
                 id='sliderMQ',
                 min=0,
-                max=100,
+                max=0,
                 step=1,
-                value=[0,100],
+                value=[0,0],
                 updatemode='drag',
                 className='two columns',
+                disabled=True
             ),
             html.Div(id='output-container-range-sliderMQ', className='three columns')
         ], style={'padding': 20}),
@@ -446,6 +431,7 @@ app.layout = html.Div([
                 value=100,
                 updatemode='drag',
                 className='two columns',
+                disabled=True
             ),
             html.Div(id='output-container-range-sliderMiss', className='three columns')
         ], style={'padding': 20}),
@@ -461,10 +447,24 @@ app.layout = html.Div([
     html.Div(id='nsnpsmulti', style={'display': 'none'}),
     html.Div(id='nindels', style={'display': 'none'}),
     html.Div(id='nrohs', style={'display': 'none'}),
+    html.Div(id='list_avg_miss', style={'display': 'none'}),
+    html.Div(id='list_avg_dp_gt', style={'display': 'none'}),
+    html.Div(id='list_dict_perc_gt', style={'display': 'none'}),
+
+    ## Warning Pop-ups:
+    #dcc.ConfirmDialog(
+    #    id='warningVCF',
+    #    message='VCF file not uploaded!',
+    #),
 
     ## Name of inputs files:
     html.Div('Input VCF file: -', id='output-name'),
-    html.Div(id='output-popname'),
+    html.Div('Input Population file: -', id='output-popname'),
+
+    ## Button for start the app:
+    html.Div([
+        html.Button('Start', id='button-start', n_clicks=0),
+    ], style={'padding': 20}),
 
     ## Horizontal line:
     html.Hr(),
@@ -480,8 +480,6 @@ app.layout = html.Div([
                 html.Div([
                     html.Div('Select Plot', className='two columns'),
                     html.Div(dcc.Dropdown(id='plot-selector', 
-                                          #options=dropdown_options()
-                                          #options=[{'label': k, 'value': k} for k in all_options.keys()]
                              ),className='four columns')
                 ]),
             ], className='six columns'),
@@ -492,7 +490,7 @@ app.layout = html.Div([
 
         ## Button for download the filtered VCF:
         html.Div([
-            html.Button('Download VCF', id='button-download'),
+            html.Button('Download VCF', id='button-download', n_clicks=0),
             html.Div(id='output-download'),
         ], style={'padding': 20}),
 
@@ -503,6 +501,12 @@ app.layout = html.Div([
 
     ## Summary of VCF (number of mutations, missing per population and average depth per coverage
     html.Div(id='summary'),
+
+    ## Horizontal line:
+    html.Hr(),
+
+    ## Warnings of possible biases in the VCF file
+    html.Div(id='warnings'),
 
     ## Horizontal line:
     html.Hr(),
@@ -618,7 +622,7 @@ def draw_depth_vs_gt(plot,df,samples,valuedepth):
             end_of_range = valuedepth[1]
         if start_of_range >= valuedepth[1]:
             break
-        ranges_depth.append(str(start_of_range) + '-' + str(end_of_range))
+        ranges_depth.append(str(str(start_of_range) + '-' + str(end_of_range)))
 
         ngt = {}
         sum00 = 0
@@ -648,11 +652,11 @@ def draw_depth_vs_gt(plot,df,samples,valuedepth):
 
     data = []
 
-    for x in range(0,len(gt_types)):
+    for i in range(0,len(gt_types)):
         trace = go.Bar(
             x=ranges_depth,
-            y=sum_total[x],
-            name=gt_types[x]
+            y=sum_total[i],
+            name=gt_types[i]
         )
         data.append(trace)
 
@@ -664,21 +668,19 @@ def draw_pca(plot,table):
 
     pops = table['Population'].unique()
     data = []
-    colors = ['red', 'green', 'blue']
+    #colors = ['red', 'green', 'blue']
     
-    for name, col in zip(pops, colors):
+    for name in pops:
         indicesToKeep = table['Population'] == name
         data.append(go.Scatter(x = table.loc[indicesToKeep, 'principal component 1'],
                                y = table.loc[indicesToKeep, 'principal component 2'],
                                name=name,
                                mode = 'markers',
                                marker= dict(size = 10,
-                                            color = col,
                                             line = dict(width = 2)
                                             )
                                )
                     )
-
     return data
 
 def draw_hwe(plot,table,pops):
@@ -697,9 +699,34 @@ def draw_inbreed(plot,table,pops):
         figure = ff.create_distplot([table[p].dropna() for p in pops], pops, show_hist=False)
         return figure
 
-## Upload VCF file:
+## Write the VCF filename:
 @app.callback([Output('output-name', 'children'),
-              Output('output-vcf', 'children'),
+              Output('output-popname', 'children')],
+              [Input('upload-vcf', 'filename'),
+              Input('upload-poplist', 'filename')])
+def update_nameoutput(filename, popfile):
+    if filename:
+        if popfile:
+            return 'Input VCF file: ' + filename, 'Input Population file: ' + popfile
+        else:
+            return 'Input VCF file: ' + filename, 'Input Population file: -'
+    else:
+        if popfile:
+            return 'Input VCF file: -', 'Input Population file: ' + popfile
+        else:
+            return 'Input VCF file: -', 'Input Population file: -'
+
+## Warning if VCF file is not uploaded:
+#@app.callback(Output('warningVCF', 'displayed'),
+#              [Input('button-start', 'n_clicks')],
+#              [State('upload-vcf', 'filename')])
+#def update_nameoutput(nclicks, filename):
+#    if nclicks > 0 and not filename:
+#        return True
+#    return False
+
+## Upload VCF file:
+@app.callback([Output('output-vcf', 'children'),
               Output('output-samples', 'children'),
               Output('header', 'children'),
               Output('sliderDP', 'min'),
@@ -712,19 +739,23 @@ def draw_inbreed(plot,table,pops):
               Output('sliderMQ', 'value'),
               Output('sliderMiss', 'max'),
               Output('sliderMiss', 'value'),
+              Output('sliderMiss', 'disabled'),
               Output('nsnpsbi', 'children'),
               Output('nsnpsmulti', 'children'),
               Output('nindels', 'children'),
-              Output('nrohs', 'children')],
-              [Input('upload-vcf', 'filename'),
-              Input('radio-typeSNP', 'value')])
-def update_nameoutput(filename, type_snps = 'all'):
-    
-    #if (type_snps is None):
-    #    type_snps = 'all'
+              Output('nrohs', 'children'),
+              Output('plot-selector','options'),
+              Output('list_avg_miss','children'),
+              Output('list_dict_perc_gt','children'),
+              Output('list_avg_dp_gt','children')],
+              [Input('button-start', 'n_clicks')],
+              [State('radio-typeSNP', 'value'),
+              State('upload-vcf', 'filename'),
+              State('upload-poplist', 'filename')])
+def update_nameoutput(nclicks, type_snps, filename, popfile):
 
-    if filename:
-        
+    if nclicks > 0 and filename:
+
         #starttime = time.time()
 
         ## Read the input VCF file (mutations and header separately)
@@ -743,51 +774,210 @@ def update_nameoutput(filename, type_snps = 'all'):
         nSNPsbi = len(df[(df.END.isnull()) & (df.INDEL.isnull()) & (df.ALT.str.contains(',') == False)])
         nSNPsmulti = len(df[(df.END.isnull()) & (df.INDEL.isnull()) & (df.ALT.str.contains(','))])
         nINDELs = len(df[df.INDEL.notnull()])
-        nROHs = ((df[df.END.notnull()].END) -(df[df.END.notnull()].POS)).sum() #len(df[df.END.notnull()])
+        nROHs = ((df[df.END.notnull()].END) -(df[df.END.notnull()].POS)).sum()
 
-        #print(nSNPsbi, nSNPsmulti, nINDELs, nROHs)
+        add_genotype_cols(df, genotype_fields, samples)
+        add_info_cols(df, info_fields)
+
+        list_avg_miss = {}
+        list_avg_dp_gt = {}
+        list_dict_perc_gt = {}
+
+        plots_options = {}
+
+        if (samples[0] + '_DP') in df.columns:
+            gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3']
+            list_gt = {}
+            for s in samples:
+                if s + '_GT' in df.columns:
+                    for gt in gtposib:
+                        gtlistdp = df[df[s + '_GT'] == gt][s + '_DP'].dropna().values.tolist()
+                        if len(gtlistdp) != 0:
+                            if gt in list_gt:
+                                list_gt[gt] += gtlistdp
+                            else:
+                                list_gt[gt] = gtlistdp
+            for g in list_gt:
+                avg_dp_gt = {}
+                avg_dp_gt['Genotype'] = g
+                avg_dp_gt['Depth'] = round(sum(list_gt[g])/len(list_gt[g]),1)
+                for k, v in avg_dp_gt.items():
+                    if k in list_avg_dp_gt:
+                        list_avg_dp_gt[k].append(v)
+                    else:
+                        list_avg_dp_gt[k] = [v]
+
+
+            if popfile is not None:
+                plots = ["Missing by Population", 
+                         "Missing by SNP", 
+                         "Reference allele frequency",
+                         "Depth by individual",
+                         "Depth by genotype",
+                         "Count genotypes per Depth",
+                         "Principal Component Analyisis (PCA)",
+                         "Hardy-Weinberg test",
+                         "Inbreeding coefficient"]
+                plots_options = ([{'label': p, 'value': p} for p in plots])
+
+                missing_individual = missing_ind(df, samples)
+                indiv_table = table_indiv(popfile,samples)
+                indiv_table.index = indiv_table.Individual
+                indiv_table = pd.concat([indiv_table, missing_individual], axis=1, sort=False, join='inner')
+                indiv_table.rename(columns = {0:"Missing"}, inplace=True)
+                tablepop = indiv_table.replace('./.', np.NaN)
+                del indiv_table
+                pops = tablepop['Population'].unique()
+    
+                gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3','./.']
+
+                for p in pops:
+                    avg_miss = {}
+                    avg_miss['Population'] = p
+                    avg_miss['Missing'] = str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '%'
+                    for k, v in avg_miss.items():
+                        if k in list_avg_miss:
+                            list_avg_miss[k].append(v)
+                        else:
+                            list_avg_miss[k] = [v]
+
+                    dict_perc_gt = {}
+                    dict_perc_gt['Population'] = p
+                    samples_p = tablepop[tablepop['Population'] == p]['Individual']
+                    ngt = {}
+                    count_gt = {}
+                    total_gt = 0
+                    for s in samples_p:
+                        ngt[s] = df.groupby([s + '_GT'])[s + '_GT'].count()
+                        total_gt += ngt[s].sum()
+                        for gt in gtposib:
+                            if gt in ngt[s]:
+                                if gt in count_gt:
+                                    count_gt[gt] += ngt[s][gt]
+                                else:
+                                    count_gt[gt] = ngt[s][gt]
+                    for g in gtposib:
+                        if g in count_gt:
+                            dict_perc_gt[g] = str(round((count_gt[g]/total_gt)*100,2)) + '%'
+                        else:
+                            dict_perc_gt[g] = str(0.00) + '%'
+
+                    for k, v in dict_perc_gt.items():
+                        if k in list_dict_perc_gt:
+                            list_dict_perc_gt[k].append(v)
+                        else:
+                            list_dict_perc_gt[k] = [v]
+
+            else:
+                popfile = '-'
+  
+                plots = ["Missing by SNP", 
+                         "Reference allele frequency",
+                         "Depth by individual",
+                         "Depth by genotype",
+                         "Count genotypes per Depth"]
+
+                plots_options = ([{'label': p, 'value': p} for p in plots])
+
+        else:
+            if popfile is not None:
+                plots = ["Missing by Population", 
+                         "Missing by SNP", 
+                         "Reference allele frequency",
+                         "Principal Component Analyisis (PCA)",
+                         "Hardy-Weinberg test",
+                         "Inbreeding coefficient"]
+                plots_options = ([{'label': p, 'value': p} for p in plots])
+
+                missing_individual = missing_ind(df, samples)
+                indiv_table = table_indiv(popfile,samples)
+                indiv_table.index = indiv_table.Individual
+                indiv_table = pd.concat([indiv_table, missing_individual], axis=1, sort=False, join='inner')
+                indiv_table.rename(columns = {0:"Missing"}, inplace=True)
+                tablepop = indiv_table.replace('./.', np.NaN)
+                del indiv_table
+                pops = tablepop['Population'].unique()
+    
+                gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3','./.']
+
+                for p in pops:
+                    avg_miss = {}
+                    avg_miss['Population'] = p
+                    avg_miss['Missing'] = str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '%'
+                    for k, v in avg_miss.items():
+                        if k in list_avg_miss:
+                            list_avg_miss[k].append(v)
+                        else:
+                            list_avg_miss[k] = [v]
+
+                    dict_perc_gt = {}
+                    dict_perc_gt['Population'] = p
+                    samples_p = tablepop[tablepop['Population'] == p]['Individual']
+                    ngt = {}
+                    count_gt = {}
+                    total_gt = 0
+                    for s in samples_p:
+                        ngt[s] = df.groupby([s])[s].count()
+                        total_gt += ngt[s].sum()
+                        for gt in gtposib:
+                            if gt in ngt[s]:
+                                if gt in count_gt:
+                                    count_gt[gt] += ngt[s][gt]
+                                else:
+                                    count_gt[gt] = ngt[s][gt]
+                    for g in gtposib:
+                        if g in count_gt:
+                            dict_perc_gt[g] = str(round((count_gt[g]/total_gt)*100,2)) + '%'
+                        else:
+                            dict_perc_gt[g] = str(0.00) + '%'
+
+                    for k, v in dict_perc_gt.items():
+                        if k in list_dict_perc_gt:
+                            list_dict_perc_gt[k].append(v)
+                        else:
+                            list_dict_perc_gt[k] = [v]
+
+            else:
+                popfile = '-'
+  
+                plots = ["Missing by SNP", 
+                         "Reference allele frequency"]
+                plots_options = ([{'label': p, 'value': p} for p in plots])
 
         ## Filter by the selected type of position
         df_filt = {}
         if type_snps == 'all':
             df_filt = df
-            df_filt.drop('END', axis=1, inplace=True)
             df_filt.drop('INDEL', axis=1, inplace=True)
         elif type_snps == 'snpindel':
             df_filt = df
-            if not df_filt.empty:
-                add_genotype_cols(df_filt, genotype_fields, samples)
-                add_info_cols(df_filt, info_fields)
-            df_filt.drop('END', axis=1, inplace=True)
             df_filt.drop('INDEL', axis=1, inplace=True)
+            df_filt.drop('END', axis=1, inplace=True)
         elif type_snps == 'snps':
             df_filt = table_snps(df)
-            if not df_filt.empty:
-                add_genotype_cols(df_filt, genotype_fields, samples)
-                add_info_cols(df_filt, info_fields)
+            df_filt.drop('INDEL', axis=1, inplace=True)
+            df_filt.drop('END', axis=1, inplace=True)
         elif type_snps == 'biallelic':
             df_filt = biallelic_snps(df)
-            if not df_filt.empty:
-                add_genotype_cols(df_filt, genotype_fields, samples)
-                add_info_cols(df_filt, info_fields)
+            df_filt.drop('INDEL', axis=1, inplace=True)
+            df_filt.drop('END', axis=1, inplace=True)
         elif type_snps == 'multiallelic':
             df_filt = multiallelic_snps(df)
-            if not df_filt.empty:
-                add_genotype_cols(df_filt, genotype_fields, samples)
-                add_info_cols(df_filt, info_fields)
+            df_filt.drop('INDEL', axis=1, inplace=True)
+            df_filt.drop('END', axis=1, inplace=True)
         elif type_snps == 'indels':
             df_filt = table_indels(df)
-            if not df_filt.empty:
-                add_genotype_cols(df_filt, genotype_fields, samples)
-                add_info_cols(df_filt, info_fields)
-                df_filt.drop('INDEL', axis=1, inplace=True)
+            df_filt.drop('INDEL', axis=1, inplace=True)
+            df_filt.drop('END', axis=1, inplace=True)
         elif type_snps == 'rohs':
             df_filt = table_rohs(df)
-            if not df_filt.empty:
-                add_genotype_cols(df_filt, genotype_fields, samples)
-                add_info_cols(df_filt, info_fields)
+            df_filt.drop('INDEL', axis=1, inplace=True)
 
         del df
+
+        for c in df_filt.columns:
+            if df_filt[c].notnull().sum() == 0:
+                df_filt.drop(c, axis=1, inplace=True)
 
         ## Configure the sliders by the VCF values of Sample Depth, Mapping quality and Missing data
         minDP_i = 100
@@ -820,44 +1010,24 @@ def update_nameoutput(filename, type_snps = 'all'):
             disableMQ = True
         valueMQ = [minMQ,maxMQ]
 
+        if type_snps == 'all':
+            disableDP = True
+            disableMQ = True
+
         df_filt['Missing'] = missing_snp(df_filt, samples)
         maxMiss = df_filt.Missing.max()
         valueMiss = maxMiss
+        disableMiss = False
+
         ## Convert the Pandas DataFrame into Json table to the transport of the table to other callback
         df_json = df_filt.to_json(date_format='iso', orient='table')
+        df_json_list_avg_miss = pd.DataFrame.from_dict(list_avg_miss).to_json(date_format='iso', orient='table')
+        df_json_list_dict_perc_gt = pd.DataFrame.from_dict(list_dict_perc_gt).to_json(date_format='iso', orient='table')
+        df_json_list_avg_dp_gt = pd.DataFrame.from_dict(list_avg_dp_gt).to_json(date_format='iso', orient='table')
 
         #feather.write_dataframe(df_filt, 'df.feather')
 
-        return 'Input VCF file: ' + filename, df_json, samples, header, minDP_f, maxDP_f, disableDP, valueDP, minMQ, maxMQ, disableMQ, valueMQ, maxMiss, valueMiss, nSNPsbi, nSNPsmulti, nINDELs, nROHs
-
-
-## Upload Poplist name:
-@app.callback([Output('output-popname', 'children'),
-              Output('plot-selector','options')],
-              [Input('upload-poplist', 'filename')])
-def update_poplist(filename):
-    if filename is not None:
-        plots = ["Missing by Population", 
-                 "Missing by SNP", 
-                 "Reference allele frequency",
-                 "Depth by individual",
-                 "Depth by genotype",
-                 "Count genotypes per Depth",
-                 "Principal Component Analyisis (PCA)",
-                 "Hardy-Weinberg test",
-                 "Inbreeding coefficient"]
-        plots_options = ([{'label': p, 'value': p} for p in plots])
-
-        return 'Input list of individuals and breeds: ' + filename, plots_options
-
-    else:
-        plots = ["Missing by SNP", 
-                 "Reference allele frequency",
-                 "Depth by individual",
-                 "Depth by genotype"]
-        plots_options = ([{'label': p, 'value': p} for p in plots])
-
-        return 'Input list of individuals and breeds: -', plots_options
+        return df_json, samples, header, minDP_f, maxDP_f, disableDP, valueDP, minMQ, maxMQ, disableMQ, valueMQ, maxMiss, valueMiss, disableMiss, nSNPsbi, nSNPsmulti, nINDELs, nROHs, plots_options, df_json_list_avg_miss, df_json_list_dict_perc_gt, df_json_list_avg_dp_gt
 
 ## Display the datatable of the filtered VCF
 @app.callback([Output('datatable-upload', 'children'),
@@ -866,8 +1036,9 @@ def update_poplist(filename):
               Input('output-samples', 'children'),
               Input('sliderDP', 'value'),
               Input('sliderMQ', 'value'),
-              Input('sliderMiss', 'value')])
-def showing_table(jsonified_dataframe,samples,valueDP,valueMQ,valueMiss):
+              Input('sliderMiss', 'value')],
+              [State('radio-typeSNP', 'value')])
+def showing_table(jsonified_dataframe,samples,valueDP,valueMQ,valueMiss,type_snps):
 
     if jsonified_dataframe and samples:
 
@@ -877,193 +1048,230 @@ def showing_table(jsonified_dataframe,samples,valueDP,valueMQ,valueMiss):
         df = pd.read_json(jsonified_dataframe, orient='table')
 
         ## Apply the selected ranges of the sliders:
-        for s in samples:
-            colnameDP = s + '_DP'
-            colnameGT = s + '_GT'
-            if colnameDP in df.columns:
-                df[colnameGT] = np.where((df[colnameDP] >= valueDP[0]) & (df[colnameDP] <= valueDP[1]), df[colnameGT], './.')
+        if type_snps != 'all':
+            for s in samples:
+                colnameDP = s + '_DP'
+                colnameGT = s + '_GT'
+                if colnameDP in df.columns:
+                    df[colnameGT] = np.where(((df[colnameDP] >= valueDP[0]) & (df[colnameDP] <= valueDP[1])) | (df[colnameDP].notnull() == False), df[colnameGT], './.')
 
-        if 'MQ' in df.columns:
-            df = df.loc[(df['MQ'] >= valueMQ[0]) & (df['MQ'] <= valueMQ[1])]
-
-        df = df.loc[(df['Missing'] <= valueMiss)]
+            if 'MQ' in df.columns:
+                df = df.loc[(df['MQ'] >= valueMQ[0]) & (df['MQ'] <= valueMQ[1])]
+    
+            df = df.loc[(df['Missing'] <= valueMiss)]
 
         ## Convert the filtered DataFrame into Json table:
         df_json = df.to_json(date_format='iso', orient='table')
 
         return generate_table(df), df_json
 
-def newline_summary_miss(pop, number):
-    newline = 'Average missing in ' + pop + ' population: ' + str(round(number,2)) + '%'
-    return newline
-
 ## Display the summary statistics of the filtered VCF
 @app.callback(Output('summary', 'children'),
-              [Input('output-vcf', 'children'),
+              [Input('nsnpsbi', 'children'),
               Input('upload-poplist', 'filename'),
-              Input('output-samples', 'children'),
-              Input('nsnpsbi', 'children'),
               Input('nsnpsmulti', 'children'),
               Input('nindels', 'children'),
-              Input('nrohs', 'children')])
-def summary_stats(jsonified_dataframe,popfile,samples,nsnpsbi,nsnpsmulti,nindels,nrohs):
+              Input('nrohs', 'children'),
+              Input('list_avg_miss', 'children'),
+              Input('list_avg_dp_gt', 'children'),
+              Input('list_dict_perc_gt', 'children')])
+def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,json_list_avg_dp_gt,json_list_dict_perc_gt):
 
-    if jsonified_dataframe and samples:
+    if (nsnpsbi is not None) and (nsnpsmulti is not None) and (nindels is not None) and (nrohs is not None) and json_list_avg_miss and json_list_avg_dp_gt and json_list_dict_perc_gt:
+        df_list_avg_miss = pd.read_json(json_list_avg_miss, orient='table')
+        df_list_dict_perc_gt = pd.read_json(json_list_dict_perc_gt, orient='table')
+        df_list_avg_dp_gt = pd.read_json(json_list_avg_dp_gt, orient='table')
 
-        df = pd.read_json(jsonified_dataframe, orient='table')
-
-        if (samples[0] + '_DP') in df.columns:    
-            gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3']
-            list_gt = {}
-            for s in samples:
-                if s + '_GT' in df.columns:
-                    for gt in gtposib:
-                        gtlistdp = df[df[s + '_GT'] == gt][s + '_DP'].dropna().values.tolist()
-                        if len(gtlistdp) != 0:
-                            if gt in list_gt:
-                                list_gt[gt] += gtlistdp
-                            else:
-                                list_gt[gt] = gtlistdp
-            avg_dp_gt = ''
-            for g in list_gt:
-                if avg_dp_gt == '':
-                    avg_dp_gt = '- Average depth by genotype: ' + str(round(sum(list_gt[g])/len(list_gt[g]),1)) + ' for ' + g
-                else:
-                    avg_dp_gt += ', ' + str(round(sum(list_gt[g])/len(list_gt[g]),1)) + ' for ' + g
-
-            if popfile is not None:
-                missing_individual = missing_ind(df, samples)
-                indiv_table = table_indiv(popfile,samples)
-                indiv_table.index = indiv_table.Individual
-                indiv_table = pd.concat([indiv_table, missing_individual], axis=1, sort=False, join='inner')
-                indiv_table.rename(columns = {0:"Missing"}, inplace=True)
-                tablepop = indiv_table.replace('./.', np.NaN)
-                del indiv_table
-                pops = tablepop['Population'].unique()
-    
-                avg_miss = ''
-                gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3','./.']
-                list_dict_perc_gt = []
-                for p in pops:
-
-                    dict_perc_gt = {}
-                    dict_perc_gt['Population'] = p
-
-                    if avg_miss == '':
-                        avg_miss = '- Average missing per population: ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
-                    else:
-                        avg_miss += ', ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
-
-                    samples_p = tablepop[tablepop['Population'] == p]['Individual']
-                    ngt = {}
-                    count_gt = {}
-                    total_gt = 0
-                    for s in samples_p:
-                        ngt[s] = df.groupby([s + '_GT'])[s + '_GT'].count()
-                        total_gt += ngt[s].sum()
-                        for gt in gtposib:
-                            if gt in ngt[s]:
-                                if gt in count_gt:
-                                    count_gt[gt] += ngt[s][gt]
-                                else:
-                                    count_gt[gt] = ngt[s][gt]
-                    for g in gtposib:
-                        if g in count_gt:
-                            dict_perc_gt[g] = str(round((count_gt[g]/total_gt)*100,2)) + '%'
-                        else:
-                            dict_perc_gt[g] = str(0.00) + '%'
-
-                    list_dict_perc_gt.append(dict_perc_gt)
-
+        if df_list_avg_dp_gt.empty == False:
+            if popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == False):
+                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                for i in range(0,len(dict_perc_gt)):
+                    dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
+                    dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
+                    dict_perc_gt[i]['1/1'] = dict_perc_gt[i].pop('_3')
+                    dict_perc_gt[i]['0/2'] = dict_perc_gt[i].pop('_4')
+                    dict_perc_gt[i]['1/2'] = dict_perc_gt[i].pop('_5')
+                    dict_perc_gt[i]['2/2'] = dict_perc_gt[i].pop('_6')
+                    dict_perc_gt[i]['0/3'] = dict_perc_gt[i].pop('_7')
+                    dict_perc_gt[i]['1/3'] = dict_perc_gt[i].pop('_8')
+                    dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
+                    dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
+                    dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
-                            html.Div(avg_miss, style={'marginTop':'1em'}),
-                            html.Div(avg_dp_gt),
+                            html.Div('- Average missing per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_miss.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_miss.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div('- Average depth by genotype:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_dp_gt.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_dp_gt.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
                             html.Div('- Proportion of genotypes per population:'),
                             html.Div([
                                 dash_table.DataTable(
-                                    data=list_dict_perc_gt,
-                                    columns=[{'name': i, 'id': i} for i in list_dict_perc_gt[0].keys()],
+                                    data=dict_perc_gt,
+                                    columns=[{'name': i, 'id': i} for i in df_list_dict_perc_gt.columns],
                                     style_as_list_view=True,
                                     style_table={
                                         'maxWidth': '800',
                                         'maxHeight': '600',  
                                     },
                                 ),
-                            ], style={'marginTop':'1em', 'marginLeft':'2em'})
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'})
                 ])
-    
+            elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
+                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                for i in range(0,len(dict_perc_gt)):
+                    dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
+                    dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
+                    dict_perc_gt[i]['1/1'] = dict_perc_gt[i].pop('_3')
+                    dict_perc_gt[i]['0/2'] = dict_perc_gt[i].pop('_4')
+                    dict_perc_gt[i]['1/2'] = dict_perc_gt[i].pop('_5')
+                    dict_perc_gt[i]['2/2'] = dict_perc_gt[i].pop('_6')
+                    dict_perc_gt[i]['0/3'] = dict_perc_gt[i].pop('_7')
+                    dict_perc_gt[i]['1/3'] = dict_perc_gt[i].pop('_8')
+                    dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
+                    dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
+                    dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
+                return html.Div([
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div('- Average depth by genotype:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_dp_gt.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_dp_gt.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div('- Proportion of genotypes per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=dict_perc_gt,
+                                    columns=[{'name': i, 'id': i} for i in df_list_dict_perc_gt.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '800',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'})
+                ])
+            elif popfile and (df_list_dict_perc_gt.empty == True) and (df_list_avg_miss.empty == False):
+                return html.Div([
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div('- Average missing per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_miss.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_miss.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div('- Average depth by genotype:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_dp_gt.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_dp_gt.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                ])
+
             else:
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
-                            html.Div(avg_dp_gt, style={'marginTop':'1em'})
+                            html.Div('- Average depth by genotype:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_dp_gt.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_dp_gt.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
                 ])
-
-        else:
-
-            if popfile is not None:
-                missing_individual = missing_ind(df, samples)
-                indiv_table = table_indiv(popfile,samples)
-                indiv_table.index = indiv_table.Individual
-                indiv_table = pd.concat([indiv_table, missing_individual], axis=1, sort=False, join='inner')
-                indiv_table.rename(columns = {0:"Missing"}, inplace=True)
-                tablepop = indiv_table.replace('./.', np.NaN)
-                del indiv_table
-                pops = tablepop['Population'].unique()
     
-                avg_miss = ''
-                gtposib = ['0/0','0/1','1/1','0/2','1/2','2/2','0/3','1/3','2/3','3/3','./.']
-                list_dict_perc_gt = []
-                for p in pops:
-
-                    dict_perc_gt = {}
-                    dict_perc_gt['Population'] = p
-
-                    if avg_miss == '':
-                        avg_miss = '- Average missing per population: ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
-                    else:
-                        avg_miss += ', ' + str(round(tablepop[tablepop['Population'] == p]['Missing'].mean(),2)) + '% in ' + p
-
-                    samples_p = tablepop[tablepop['Population'] == p]['Individual']
-                    ngt = {}
-                    count_gt = {}
-                    total_gt = 0
-                    for s in samples_p:
-                        ngt[s] = df.groupby([s])[s].count()
-                        total_gt += ngt[s].sum()
-                        print(s,total_gt)
-                        for gt in gtposib:
-                            if gt in ngt[s]:
-                                if gt in count_gt:
-                                    count_gt[gt] += ngt[s][gt]
-                                else:
-                                    count_gt[gt] = ngt[s][gt]
-                    for g in gtposib:
-                        if g in count_gt:
-                            dict_perc_gt[g] = str(round((count_gt[g]/total_gt)*100,2)) + '%'
-                        else:
-                            dict_perc_gt[g] = str(0.00) + '%'
-
-                    list_dict_perc_gt.append(dict_perc_gt)
-
-
+        else:
+            if popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == False):
+                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                for i in range(0,len(dict_perc_gt)):
+                    dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
+                    dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
+                    dict_perc_gt[i]['1/1'] = dict_perc_gt[i].pop('_3')
+                    dict_perc_gt[i]['0/2'] = dict_perc_gt[i].pop('_4')
+                    dict_perc_gt[i]['1/2'] = dict_perc_gt[i].pop('_5')
+                    dict_perc_gt[i]['2/2'] = dict_perc_gt[i].pop('_6')
+                    dict_perc_gt[i]['0/3'] = dict_perc_gt[i].pop('_7')
+                    dict_perc_gt[i]['1/3'] = dict_perc_gt[i].pop('_8')
+                    dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
+                    dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
+                    dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
-                            html.Div(avg_miss, style={'marginTop':'1em'}),
+                            html.Div('- Average missing per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_miss.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_miss.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
                             html.Div('- Proportion of genotypes per population:'),
                             html.Div([
                                 dash_table.DataTable(
-                                    data=list_dict_perc_gt,
-                                    columns=[{'name': i, 'id': i} for i in list_dict_perc_gt[0].keys()],
+                                    data=dict_perc_gt,
+                                    columns=[{'name': i, 'id': i} for i in df_list_dict_perc_gt.columns],
                                     style_as_list_view=True,
                                     style_table={
                                         'maxWidth': '800',
@@ -1072,7 +1280,57 @@ def summary_stats(jsonified_dataframe,popfile,samples,nsnpsbi,nsnpsmulti,nindels
                                 ),
                             ], style={'marginTop':'1em', 'marginLeft':'2em'})
                 ])
-    
+            elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
+                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                for i in range(0,len(dict_perc_gt)):
+                    dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
+                    dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
+                    dict_perc_gt[i]['1/1'] = dict_perc_gt[i].pop('_3')
+                    dict_perc_gt[i]['0/2'] = dict_perc_gt[i].pop('_4')
+                    dict_perc_gt[i]['1/2'] = dict_perc_gt[i].pop('_5')
+                    dict_perc_gt[i]['2/2'] = dict_perc_gt[i].pop('_6')
+                    dict_perc_gt[i]['0/3'] = dict_perc_gt[i].pop('_7')
+                    dict_perc_gt[i]['1/3'] = dict_perc_gt[i].pop('_8')
+                    dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
+                    dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
+                    dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
+                return html.Div([
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div('- Proportion of genotypes per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=dict_perc_gt,
+                                    columns=[{'name': i, 'id': i} for i in df_list_dict_perc_gt.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '800',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginLeft':'2em'})
+                ])
+            elif popfile and (df_list_dict_perc_gt.empty == True) and (df_list_avg_miss.empty == False):
+                return html.Div([
+                            html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
+                            html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div('- Number of INDELs = {}'.format(nindels)),
+                            html.Div('- Number of homozigous positions = {}'.format(nrohs)),
+                            html.Div('- Average missing per population:'),
+                            html.Div([
+                                dash_table.DataTable(
+                                    data=df_list_avg_miss.to_dict(orient='records'),
+                                    columns=[{'name': i, 'id': i} for i in df_list_avg_miss.columns],
+                                    style_as_list_view=True,
+                                    style_table={
+                                        'maxWidth': '150',
+                                        'maxHeight': '600',  
+                                    },
+                                ),
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                ])
             else:
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
@@ -1241,15 +1499,11 @@ def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP
 
         elif plot == "Count genotypes per Depth":
 
-            ## Correlation between depth and reference allele frequency
-            if popfile is not None:
+            ## Count number of each genotype by depth
+            data = draw_depth_vs_gt(plot, df, samples, valueDP)
+            layout = go.Layout(barmode='stack', title = 'Count of genotypes per sample depth', xaxis=dict(title='Sample depth',type='category'), yaxis=dict(title='Count of genotypes'))
 
-                tablepop = table_indiv(popfile,samples).replace('./.', np.NaN)
-
-                data = draw_depth_vs_gt(plot, df, samples, valueDP)
-                layout = go.Layout(barmode='stack', title = 'Count of genotypes per sample depth', xaxis=dict(title='Sample depth'), yaxis=dict(title='Count of genotypes'))
-
-                return html.Div([dcc.Graph(figure=dict(data=[n for n in data], layout=layout))])
+            return html.Div([dcc.Graph(figure=dict(data=[n for n in data], layout=layout))])
 
         elif plot == "Principal Component Analyisis (PCA)":
 
@@ -1270,7 +1524,7 @@ def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP
                     s_gt = s + '_GT'
     
                     if s_gt in df.columns:
-                        vcf_samples[s_gt] = df[s_gt].astype('str').replace({ "\.\/\." : np.NaN, "0\/0" : 1, "0\/." : 0.5, ".\/." : 0}, regex=True)
+                        vcf_samples[s] = df[s_gt].astype('str').replace({ "\.\/\." : np.NaN, "0\/0" : 1, "0\/." : 0.5, ".\/." : 0}, regex=True)
                     else:
                         vcf_samples[s] = df[s].astype('str').replace({ "\.\/\." : np.NaN, "0\/0" : 1, "0\/." : 0.5, ".\/." : 0}, regex=True)
 
@@ -1283,17 +1537,12 @@ def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP
                 vcf_samples.fillna(value = "NA", inplace = True)
 
                 for s in samples:
-                    s_gt = s + '_GT'
-    
-                    if s_gt in df.columns:
-                        vcf_samples[s_gt] = np.where(vcf_samples[s_gt] == "NA", weight_miss, vcf_samples[s_gt])
-                    else:
-                        vcf_samples[s] = np.where(vcf_samples[s] == "NA", weight_miss, vcf_samples[s])
+                    vcf_samples[s] = np.where(vcf_samples[s] == "NA", weight_miss, vcf_samples[s])
 
                 ## Transpose the table to have the individuals as the Row names (index of the table) and Add a column with the population of each individual:
                 indiv_table = table_indiv(popfile,samples)
                 indiv_table.set_index('Individual', inplace=True)
-    
+
                 vcf_samples_T = pd.concat([vcf_samples.T,indiv_table.Population], axis=1, sort=False, join='inner')
                 vcf_samples_T.reset_index(drop=True,inplace=True)
 
@@ -1327,9 +1576,12 @@ def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP
                 pops = indiv_table['Population'].unique()
 
                 for pop in pops:
-                    counts_gt_snps = df[indiv_table[indiv_table.Population == pop].Individual].replace('./.', np.NaN).apply(pd.value_counts,axis=1).fillna(0)
+                    if samples[0] + '_GT' in df.columns:
+                        counts_gt_snps = df[indiv_table[indiv_table.Population == pop].Individual + '_GT'].replace('./.', np.NaN).apply(pd.value_counts,axis=1).fillna(0)
+                    else:
+                        counts_gt_snps = df[indiv_table[indiv_table.Population == pop].Individual].replace('./.', np.NaN).apply(pd.value_counts,axis=1).fillna(0)
                     counts_gt_snps['total'] = counts_gt_snps.sum(axis=1)
-                   
+
                     ## We only use the genotype 0/0, 0/1, 1/1:
 
                     if {'0/0', '0/1', '1/1'}.issubset(counts_gt_snps.columns):
@@ -1351,7 +1603,7 @@ def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP
                         hwe[name_col2] = np.where(((counts_gt_snps['p0/0exp'] != 0) & (counts_gt_snps['p0/1exp'] != 0) & (counts_gt_snps['p1/1exp'] != 0) & (counts_gt_snps['p0/0obs'] != 0) & (counts_gt_snps['p0/1obs'] != 0) & (counts_gt_snps['p1/1obs'] != 0)), chisquare([counts_gt_snps['p0/0exp'], counts_gt_snps['p0/1exp'], counts_gt_snps['p1/1exp']], f_exp=[counts_gt_snps['p0/0obs'], counts_gt_snps['p0/1obs'], counts_gt_snps['p1/1obs']])[1], np.NaN)
 
                         del counts_gt_snps
-
+                #print(hwe)
                 fig = draw_hwe(plot, hwe, pops)
                 if fig:
                     fig['layout'].update(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
@@ -1372,7 +1624,10 @@ def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP
                 pops = indiv_table['Population'].unique()
 
                 for pop in pops:
-                    counts_gt_snps = df[indiv_table[indiv_table.Population == pop].Individual].replace('./.', np.NaN).apply(pd.value_counts,axis=1).fillna(0)
+                    if samples[0] + '_GT' in df.columns:
+                        counts_gt_snps = df[indiv_table[indiv_table.Population == pop].Individual + '_GT'].replace('./.', np.NaN).apply(pd.value_counts,axis=1).fillna(0)
+                    else:
+                        counts_gt_snps = df[indiv_table[indiv_table.Population == pop].Individual].replace('./.', np.NaN).apply(pd.value_counts,axis=1).fillna(0)
                     counts_gt_snps['total'] = counts_gt_snps.sum(axis=1)
                     if {'0/0', '0/1', '1/1'}.issubset(counts_gt_snps.columns):
                         counts_gt_snps['p0'] = ((2 * counts_gt_snps['0/0']) + counts_gt_snps['0/1']) / (2 * counts_gt_snps['total'])
