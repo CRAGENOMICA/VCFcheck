@@ -1,10 +1,10 @@
 
 # VCFcheck
 A tool for VCF files diagnostics
-
-
+  
+  
 ### Main features
-
+  
 - Input VCF file can be compressed (.gz) and uncompressed
 - Tool adapted to work with multi-individual VCF and with VCF of only one individual
 - Positions of the VCF can be SNPs, INDELS or ROHs
@@ -12,43 +12,43 @@ A tool for VCF files diagnostics
 - Can generate distribution plots of the missing data by SNP, the reference allele frequency and the sample depth by individual
 - Can generate distribution plot of missing data by population, perform a PCA, test the Hardy-Weinberg equilibrium and generate the distribution plot of the inbreeding coefficient, if the VCF is multi-individual and the list of individuals and its populations is uploaded
 - It allows to download the filtered VCF and the plots
-
-
+  
+  
 ### Requirements and execution
-
+  
 #### Pre-install:
-
+  
 1. Create virtual environment:
 
 ```conda create --name vcfcheck-app python=3.7```
-
+  
 2. Activate virtual environment:
 
 ```source vcfcheck-app/bin/activate```
-
+  
 3. Install dependencies:
 
 ```pip install -r requirements.txt```
-
+  
 #### Execute the program
-
+  
 1. Activate virtual environment:
 
 ```source vcfcheck-app/bin/activate```
-
+  
 2. Execute program:
 
 ```python VCFcheck.py```
-
+  
 3. Copy url on the web browser (http://0.0.0.0:8050/)
-
+  
 #### Exit from the virtual environment:
-
+  
 ```deactivate```
-
-
+  
+  
 ### Usage
-
+  
 As input, the software requires a (compressed or uncompressed) VCF file:
 
 ```
@@ -77,7 +77,8 @@ As input, the software requires a (compressed or uncompressed) VCF file:
 1       21407709        .       A       T       118     PASS    DP=7;VDB=0.788273;SGB=-0.590765;MQSB=0.5;MQ0F=0;AC=2;AN=2;DP4=0,0,2,3;MQ=53     GT:PL:DP        1/1:145,15,0:5
 1       22086814        .       A       G       177     PASS    DP=7;VDB=0.86172;SGB=-0.636426;MQSB=1;MQ0F=0;AC=2;AN=2;DP4=0,0,5,2;MQ=60        GT:PL:DP        1/1:204,21,0:7
 ```
-
+  
+  
 As optional input, it is possible to upload a file with all the samples in a column and another column with the populations to which each sample belongs (separated by tab).
 
 ```
@@ -93,19 +94,21 @@ SAMPLE9	POP3
 SAMPLE10	POP3
 SAMPLE11	POP3
 ```
-
+  
+  
 When the inputs are uploaded, the type of mutations to analyze must be selected before starting the analysis. 
 
 ![img1b](https://user-images.githubusercontent.com/30473077/57376107-81077880-719f-11e9-8ab3-7b3675d4c705.png)
-
-
-
+  
+  
+  
 Then, the table from the VCF and a summary will be displayed. In that moment, it is possible to filter the file by sample depth, mapping quality or missing data using the corresponding sliders.
 
 ![img2](https://user-images.githubusercontent.com/30473077/57376314-fd9a5700-719f-11e9-91b1-78f81253aaf6.png)
-
-
-
+  
+  
+  
 Once the table is generated, we can perform different plots and analysis by its selection in the dropdown and download the filtered VCF or the summary using the corresponding buttons.
 
 ![img3](https://user-images.githubusercontent.com/30473077/57376321-fffcb100-719f-11e9-839b-42f8abd79580.png)
+  
