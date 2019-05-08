@@ -334,7 +334,9 @@ def number_roh_positions(table):
 
 ## Set up Dashboard and create layout:
 app = dash.Dash()
-app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
+#app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
+app.css.config.serve_locally = True
+app.scripts.config.serve_locally = True
 
 #cache = Cache(app.server, config={
 #    'CACHE_TYPE': 'filesystem',
@@ -343,6 +345,10 @@ app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
 
 ## Layout of the web application:
 app.layout = html.Div([
+    html.Link(
+        rel='stylesheet',
+        href='/static/bWLwgP.css'
+    ),
 
     ## Page Header
     html.Div([
@@ -534,6 +540,11 @@ app.layout = html.Div([
     html.Hr(),
 
 ])
+
+@app.server.route('/static/<path:path>')
+def static_file(path):
+    static_folder = os.path.join(os.getcwd(), 'static')
+    return send_from_directory(static_folder, path)
 
 #############################################
 # Interaction Between Components / Controller
@@ -1280,7 +1291,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                     dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
                     dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
                     dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
-                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) < 0:
+                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) > 0:
                         if warning_proportion == "":
                             warning_proportion += '    Higher proportion of alternative allele in ' + dict_perc_gt[i]['Population']
                         else:
