@@ -29,7 +29,9 @@ A tool for VCF files diagnostics
 2. Activate virtual environment:
 
 ```source vcfcheck-app/bin/activate```
-  
+  or
+```conda activate vcfcheck-app```
+
 3. Install dependencies:
 
 ```pip install -r requirements.txt```
@@ -39,7 +41,9 @@ A tool for VCF files diagnostics
 1. Activate virtual environment:
 
 ```source vcfcheck-app/bin/activate```
-  
+  or
+```conda activate vcfcheck-app```
+
 2. Execute program:
 
 ```python VCFcheck.py```
@@ -117,4 +121,3 @@ Then, the table from the VCF and a summary will be displayed. In that moment, it
 Once the table is generated, we can perform different plots and analysis by its selection in the dropdown and download the filtered VCF or the summary using the corresponding buttons.
 
 ![img3](https://user-images.githubusercontent.com/30473077/57376321-fffcb100-719f-11e9-839b-42f8abd79580.png)
-&nbsp;
