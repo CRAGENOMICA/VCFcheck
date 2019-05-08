@@ -1,8 +1,3 @@
----
-output:
-  html_document: default
-  pdf_document: default
----
 
 # VCFcheck
 A tool for VCF files diagnostics
@@ -97,7 +92,9 @@ SAMPLE11	POP3
 ```
 
 When the inputs are uploaded, the type of mutations to analyze must be selected before starting the analysis. 
-![mutations](/home/jordi/Desktop/VCFcheck/img1.png)
+
+![img1](https://user-images.githubusercontent.com/30473077/57375744-7f898080-719e-11e9-8fbe-59ecd28b87be.png)
+
 
 Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
 
