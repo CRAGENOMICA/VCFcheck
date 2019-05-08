@@ -96,7 +96,11 @@ When the inputs are uploaded, the type of mutations to analyze must be selected 
 ![img1b](https://user-images.githubusercontent.com/30473077/57376107-81077880-719f-11e9-8ab3-7b3675d4c705.png)
 
 
-Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
+Then, the table from the VCF and a summary will be displayed. In that moment, it is possible to filter the file by sample depth, mapping quality or missing data using the corresponding sliders.
 
-Once the table is generated, we can perform different plots and analysis by its selection in the dropdown and download the filtered VCF using the Download button.
+![img2](https://user-images.githubusercontent.com/30473077/57376314-fd9a5700-719f-11e9-91b1-78f81253aaf6.png)
 
+
+Once the table is generated, we can perform different plots and analysis by its selection in the dropdown and download the filtered VCF or the summary using the corresponding buttons.
+
+![img3](https://user-images.githubusercontent.com/30473077/57376321-fffcb100-719f-11e9-839b-42f8abd79580.png)
