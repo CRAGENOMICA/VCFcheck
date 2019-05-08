@@ -83,9 +83,6 @@ As input, the software requires a (compressed or uncompressed) VCF file:
 1       21407709        .       A       T       118     PASS    DP=7;VDB=0.788273;SGB=-0.590765;MQSB=0.5;MQ0F=0;AC=2;AN=2;DP4=0,0,2,3;MQ=53     GT:PL:DP        1/1:145,15,0:5
 1       22086814        .       A       G       177     PASS    DP=7;VDB=0.86172;SGB=-0.636426;MQSB=1;MQ0F=0;AC=2;AN=2;DP4=0,0,5,2;MQ=60        GT:PL:DP        1/1:204,21,0:7
 ```
-&nbsp;
-
-&nbsp;
   
 As optional input, it is possible to upload a file with all the samples in a column and another column with the populations to which each sample belongs (separated by tab).
 
@@ -102,10 +99,7 @@ SAMPLE9	POP3
 SAMPLE10	POP3
 SAMPLE11	POP3
 ```
-&nbsp;
 
-&nbsp;
-  
 When the inputs are uploaded, the type of mutations to analyze must be selected before starting the analysis. 
 
 ![img1b](https://user-images.githubusercontent.com/30473077/57376107-81077880-719f-11e9-8ab3-7b3675d4c705.png)
