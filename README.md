@@ -106,6 +106,7 @@ Then, the table from the VCF and a summary will be displayed. In that moment, it
 
 ![img2](https://user-images.githubusercontent.com/30473077/57376314-fd9a5700-719f-11e9-91b1-78f81253aaf6.png)
 &nbsp;
+
 &nbsp;
   
 Once the table is generated, we can perform different plots and analysis by its selection in the dropdown and download the filtered VCF or the summary using the corresponding buttons.
