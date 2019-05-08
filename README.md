@@ -1,3 +1,8 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
 
 # VCFcheck
 A tool for VCF files diagnostics
@@ -91,7 +96,10 @@ SAMPLE10	POP3
 SAMPLE11	POP3
 ```
 
-When the inputs are uploaded, we have to select the type of mutations that we want to. Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
+When the inputs are uploaded, the type of mutations to analyze must be selected before starting the analysis. 
+![mutations](/home/jordi/Desktop/VCFcheck/img1.png)
+
+Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
 
 Once the table is generated, we can perform different plots and analysis by its selection in the dropdown and download the filtered VCF using the Download button.
 

@@ -23,6 +23,7 @@ import plotly.graph_objs as go
 #from flask_caching import Cache
 #import multiprocessing as mp
 import urllib.parse
+import dask.dataframe as dd
 
 #######################
 ## Data Manipulation ##
@@ -38,7 +39,9 @@ def read_header(path):
         f = open(path, 'r')
 
     header = [l.rstrip() for l in f if l.startswith('##')]
-    
+
+    f.close()
+
     contig = {}
     info_fields = []
     genotype_fields = []
@@ -73,10 +76,17 @@ def read_vcf(path):
     else:
         f = open(path, 'r')
 
-    lines = [l for l in f if not l.startswith('##')]
-
-    for c in lines[0].split('\t'):
-        c = c.rstrip('\n')
+    fout = open('vcftemp','a') 
+    #lines = [l for l in f if not l.startswith('##')]
+    for l in f:
+        if l.startswith('#C'):
+            header = l.rstrip('\n')
+        if not l.startswith('##'):
+            fout.write(l)
+    
+    #for c in lines[0].split('\t'):
+    for c in header.split('\t'):
+        #c = c.rstrip('\n')
         if c == 'POS':
             dict_dtypes[c] = 'int'
         elif c == 'INFO':
@@ -84,11 +94,21 @@ def read_vcf(path):
         else:
             dict_dtypes[c] = 'category'
 
-    return pd.read_csv(
-        io.StringIO(''.join(lines)),
+    f.close()
+    fout.close()
+
+    #return pd.read_csv(
+    #    io.StringIO(''.join(lines)),
+    #    sep='\t',
+    #    dtype=dict_dtypes,
+    #    low_memory=False
+    #    ).rename(columns={'#CHROM': 'CHROM'})
+    return dd.read_csv(
+        'vcftemp',
         sep='\t',
+        header=0,
         dtype=dict_dtypes
-        ).rename(columns={'#CHROM': 'CHROM'})
+        ).compute().rename(columns={'#CHROM': 'CHROM'})
 
 
 #contig, info_fields, genotype_fields, filters_fields = read_header(vcfFile)
@@ -98,8 +118,9 @@ def obtain_samples(table):
 
     '''Returns the list of samples'''
 
-    samples = pd.Series(table.columns[9:])
-    
+    #samples = pd.Series(table.columns[9:])
+    samples = table.columns[9:].tolist()
+
     return samples
 
 #samples = obtain_samples(vcf_table)
@@ -170,6 +191,7 @@ def type_pos(table, info_fields):
         table['END'] = pd.np.nan
 
     table.fillna(value=pd.np.nan, inplace=True)
+    #table.fillna(value=pd.np.nan)
 
 def add_info_cols(table, info_fields):
 
@@ -494,6 +516,12 @@ app.layout = html.Div([
             html.Div(id='output-download'),
         ], style={'padding': 20}),
 
+        ## Button for download the summary of results:
+        html.Div([
+            html.Button('Download summary', id='button-summary', n_clicks=0),
+            html.Div(id='output-summary'),
+        ], style={'padding': 20}),
+
     ],id='div2',className='row'),
 
     ## Horizontal line:
@@ -501,12 +529,6 @@ app.layout = html.Div([
 
     ## Summary of VCF (number of mutations, missing per population and average depth per coverage
     html.Div(id='summary'),
-
-    ## Horizontal line:
-    html.Hr(),
-
-    ## Warnings of possible biases in the VCF file
-    html.Div(id='warnings'),
 
     ## Horizontal line:
     html.Hr(),
@@ -686,7 +708,6 @@ def draw_pca(plot,table):
 def draw_hwe(plot,table,pops):
 
     '''Representation of the distribution of the Hardy-Weinberg p-Value'''
-
     if len(pops) != 0:
         figure = ff.create_distplot([table['HWE_pval_' + p].dropna() for p in pops], pops, show_hist=False)
         return figure
@@ -726,8 +747,7 @@ def update_nameoutput(filename, popfile):
 #    return False
 
 ## Upload VCF file:
-@app.callback([Output('output-vcf', 'children'),
-              Output('output-samples', 'children'),
+@app.callback([Output('output-samples', 'children'),
               Output('header', 'children'),
               Output('sliderDP', 'min'),
               Output('sliderDP', 'max'),
@@ -756,17 +776,21 @@ def update_nameoutput(nclicks, type_snps, filename, popfile):
 
     if nclicks > 0 and filename:
 
-        #starttime = time.time()
+        starttime = time.time()
 
         ## Read the input VCF file (mutations and header separately)
         df = read_vcf(filename)
         contig, info_fields, genotype_fields, filters_fields, header = read_header(filename)
-
-        #endtime = time.time()
-        #print('1: ' + str(endtime-starttime))
-
+        #df_dd = dd.from_pandas(df, npartitions=3)
+        endtime = time.time()
+        print('Open VCF: ' + str(endtime-starttime))
+        print('0:', time.time())
         ## Obtain a list of the VCF samples
         samples = obtain_samples(df)
+        if os.path.exists('vcftemp'):
+            os.remove('vcftemp')
+        #else:
+        #    print('File does not exists')
 
         ## Obtain the possible type of positions from the header (SNPs, INDELs or ROHs)
         type_pos(df, info_fields)
@@ -775,7 +799,7 @@ def update_nameoutput(nclicks, type_snps, filename, popfile):
         nSNPsmulti = len(df[(df.END.isnull()) & (df.INDEL.isnull()) & (df.ALT.str.contains(','))])
         nINDELs = len(df[df.INDEL.notnull()])
         nROHs = ((df[df.END.notnull()].END) -(df[df.END.notnull()].POS)).sum()
-
+        
         add_genotype_cols(df, genotype_fields, samples)
         add_info_cols(df, info_fields)
 
@@ -1020,32 +1044,33 @@ def update_nameoutput(nclicks, type_snps, filename, popfile):
         disableMiss = False
 
         ## Convert the Pandas DataFrame into Json table to the transport of the table to other callback
-        df_json = df_filt.to_json(date_format='iso', orient='table')
+        #df_json = df_filt.to_json(date_format='iso', orient='table')
         df_json_list_avg_miss = pd.DataFrame.from_dict(list_avg_miss).to_json(date_format='iso', orient='table')
         df_json_list_dict_perc_gt = pd.DataFrame.from_dict(list_dict_perc_gt).to_json(date_format='iso', orient='table')
         df_json_list_avg_dp_gt = pd.DataFrame.from_dict(list_avg_dp_gt).to_json(date_format='iso', orient='table')
-
+        
+        print('1:' + str(time.time()))
         #feather.write_dataframe(df_filt, 'df.feather')
+        df_filt.reset_index().to_feather('df.feather')
 
-        return df_json, samples, header, minDP_f, maxDP_f, disableDP, valueDP, minMQ, maxMQ, disableMQ, valueMQ, maxMiss, valueMiss, disableMiss, nSNPsbi, nSNPsmulti, nINDELs, nROHs, plots_options, df_json_list_avg_miss, df_json_list_dict_perc_gt, df_json_list_avg_dp_gt
+        return samples, header, minDP_f, maxDP_f, disableDP, valueDP, minMQ, maxMQ, disableMQ, valueMQ, maxMiss, valueMiss, disableMiss, nSNPsbi, nSNPsmulti, nINDELs, nROHs, plots_options, df_json_list_avg_miss, df_json_list_dict_perc_gt, df_json_list_avg_dp_gt
 
 ## Display the datatable of the filtered VCF
-@app.callback([Output('datatable-upload', 'children'),
-              Output('output-vcf-filt', 'children')],
-              [Input('output-vcf', 'children'),
-              Input('output-samples', 'children'),
+@app.callback(Output('datatable-upload', 'children'),
+              [Input('output-samples', 'children'),
               Input('sliderDP', 'value'),
               Input('sliderMQ', 'value'),
               Input('sliderMiss', 'value')],
               [State('radio-typeSNP', 'value')])
-def showing_table(jsonified_dataframe,samples,valueDP,valueMQ,valueMiss,type_snps):
+def showing_table(samples,valueDP,valueMQ,valueMiss,type_snps):
 
-    if jsonified_dataframe and samples:
-
-        #df = feather.read_dataframe('df.feather')
+    if samples:
 
         ## Read the Json table in Pandas DataFrame format:
-        df = pd.read_json(jsonified_dataframe, orient='table')
+        #df = pd.read_json(jsonified_dataframe, orient='table')
+        #df = feather.read_dataframe('df.feather')
+        df = pd.read_feather('df.feather', use_threads=True)
+        print('2:' + str(time.time()))
 
         ## Apply the selected ranges of the sliders:
         if type_snps != 'all':
@@ -1061,9 +1086,11 @@ def showing_table(jsonified_dataframe,samples,valueDP,valueMQ,valueMiss,type_snp
             df = df.loc[(df['Missing'] <= valueMiss)]
 
         ## Convert the filtered DataFrame into Json table:
-        df_json = df.to_json(date_format='iso', orient='table')
-
-        return generate_table(df), df_json
+        #df_json = df.to_json(date_format='iso', orient='table')
+            #feather.write_dataframe(df, 'df2.feather')
+        df.to_feather('df2.feather')
+        print('3:' + str(time.time()))
+        return generate_table(df)#, df_json
 
 ## Display the summary statistics of the filtered VCF
 @app.callback(Output('summary', 'children'),
@@ -1137,7 +1164,9 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                         'maxHeight': '600',  
                                     },
                                 ),
-                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'})
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Hr(),
+                            html.Div('- Possible biases in the VCF:'),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
@@ -1238,6 +1267,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
         else:
             if popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == False):
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                warning_proportion = ""
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
                     dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
@@ -1250,6 +1280,11 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                     dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
                     dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
                     dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
+                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) < 0:
+                        if warning_proportion == "":
+                            warning_proportion += '    Higher proportion of alternative allele in ' + dict_perc_gt[i]['Population']
+                        else:
+                            warning_proportion += ', ' + dict_perc_gt[i]['Population']
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
@@ -1278,7 +1313,10 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                         'maxHeight': '600',  
                                     },
                                 ),
-                            ], style={'marginTop':'1em', 'marginLeft':'2em'})
+                            ], style={'marginTop':'1em', 'marginLeft':'2em'}),
+                            html.Hr(),
+                            html.Div('- Possible biases in the VCF:'),
+                            html.Div(warning_proportion),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
@@ -1342,13 +1380,12 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
 ## Download the filtered VCF:
 @app.callback(Output('output-download', 'children'),
              [Input('button-download', 'n_clicks')],
-             [State('output-vcf-filt', 'children'),
-             State('output-samples', 'children'),
+             [State('output-samples', 'children'),
              State('header', 'children'),
              State('output-name','children')])
-def update_download_link(nclicks,jsonified_dataframe,samples,header,filename):
+def vcf_download_link(nclicks,samples,header,filename):
 
-    if jsonified_dataframe and (nclicks > 0):
+    if nclicks > 0:
         
         ## For the output name we use the input name + ".filtered.vcf":
         outputfile = filename.split(' ')[-1]
@@ -1360,7 +1397,9 @@ def update_download_link(nclicks,jsonified_dataframe,samples,header,filename):
             f.write(h + '\n')
 
         ## Read the Json table in Pandas DataFrame format:
-        df = pd.read_json(jsonified_dataframe, orient='table')
+        #df = pd.read_json(jsonified_dataframe, orient='table')
+        #df = feather.read_dataframe('df2.feather')
+        df = pd.read_feather('df2.feather', use_threads=True)
 
         ## Select the standard columns of a VCF to write them in the output VCF:
         columns_str = [col for col in ['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'] + samples]
@@ -1371,76 +1410,117 @@ def update_download_link(nclicks,jsonified_dataframe,samples,header,filename):
 
         return outputfile + '.filtered.vcf' + ' downloaded!'
 
+## Download the filtered VCF:
+@app.callback(Output('output-summary', 'children'),
+             [Input('button-summary', 'n_clicks')],
+             [State('summary','children'),
+             State('output-name','children')])
+def summary_download_link(nclicks,summary,filename):
+
+    if nclicks > 0:
+        
+        ## For the output name we use the input name + ".summary.txt":
+        outputfile = filename.split(' ')[-1]
+
+        # We create the file with the header (if exists, this replace it)
+        f = open(outputfile + '.summary.txt', 'w+')
+        f.write('## Summary from VCFcheck' + '\n')
+        f.close()
+
+        ## Write the summary in the existing file with the header:
+        f = open(outputfile + '.summary.txt', 'a')
+
+        for c in summary['props']['children']:
+            if type(c['props']['children']) == list:
+                f.write('\n\n') 
+                f.write(pd.DataFrame(c['props']['children'][0]['props']['data']).to_csv(sep='\t', index=False, encoding='utf-8',na_rep='NA'))
+            else:
+                f.write('\n\n')
+                f.write(c['props']['children'])
+
+        f.close()
+
+        return outputfile + '.summary.txt' + ' downloaded!'
+
 ## Print value of the selected range of DP next to the Range Slider:
 @app.callback(Output('output-container-range-sliderDP', 'children'),
               [Input('sliderDP', 'value')])
-def update_output(value):
+def update_output1(value):
     range_selected = 'Sample depth (DP) selected between ' + str(value[0]) + ' and ' + str(value[1])
     return range_selected
 
 ## Print value of the selected range of MQ next to the Range Slider:
 @app.callback(Output('output-container-range-sliderMQ', 'children'),
               [Input('sliderMQ', 'value')])
-def update_output(value):
+def update_output2(value):
     range_selected = 'Average mapping quality (MQ) selected between ' + str(value[0]) + ' and ' + str(value[1])
     return range_selected
 
 ## Print value of the selected range of Missing next to the Range Slider:
 @app.callback(Output('output-container-range-sliderMiss', 'children'),
               [Input('sliderMiss', 'value')])
-def update_output(value):
+def update_output3(value):
     range_selected = 'Max. percentage of missing data by SNP: ' + str(value) + '%'
     return range_selected
 
 ## Display the selected plot in the dropdown
 @app.callback(Output('plot-graph', 'children'),
               [Input('plot-selector', 'value')],
-              [State('output-vcf-filt', 'children'),
-              State('output-samples', 'children'),
+              [State('output-samples', 'children'),
               State('upload-poplist', 'filename'),
               State('sliderDP', 'value')])
-def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP):
+def load_distribution_graph(plot, samples, popfile, valueDP):
 
     if plot is not None:
 
         ## Read the Json table in Pandas DataFrame format:
-        df = pd.read_json(jsonified_dataframe, orient='table')
-        #df = feather.read_dataframe('df.feather')
+        #df = pd.read_json(jsonified_dataframe, orient='table')
+        #df = feather.read_dataframe('df2.feather')
+        df = pd.read_feather('df2.feather', use_threads=True)
 
         if plot == "Missing by SNP":
 
             ## Density plot of the distribution of missing data by SNP
-
-            fig = draw_missing_snp(plot, df['Missing'])
-            if fig:
-                fig['layout'].update(title = 'Missing by SNP', xaxis=dict(title='Percentage of missing data'))
-                return html.Div([dcc.Graph(figure=fig)])
+            if (df.Missing.max() - df.Missing.min()) > 0:
+                fig = draw_missing_snp(plot, df['Missing'])
+                if fig:
+                    fig['layout'].update(title = 'Missing by SNP', xaxis=dict(title='Percentage of missing data'))
+                    return html.Div([dcc.Graph(figure=fig)])
+                else:
+                    layout = dict(title = 'Missing by SNP', xaxis=dict(title='Percentage of missing data'))
+                    return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
             else:
                 layout = dict(title = 'Missing by SNP', xaxis=dict(title='Percentage of missing data'))
-                return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                return html.Div([dcc.Graph(figure=dict(layout=layout))])
 
         elif plot == "Missing by Population":
 
             ## Density plot of the distribution of missing data by population (it is necessary the input file of individuals-populations)
-
             if popfile is not None:
-                missing_individual = missing_ind(df, samples)
-                indiv_table = table_indiv(popfile,samples)
-                indiv_table.index = indiv_table.Individual
-                indiv_table = pd.concat([indiv_table, missing_individual], axis=1, sort=False, join='inner')
-                indiv_table.rename(columns = {0:"Missing"}, inplace=True)
-        
-                tablepop = indiv_table.replace('./.', np.NaN)
-                del indiv_table
-
-                if len(tablepop) > 0:
-                    fig = draw_missing_pop(plot, tablepop)
-                if fig:
-                    fig['layout'].update(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))
-                    return html.Div([dcc.Graph(figure=fig)])
+                if (df.Missing.max() - df.Missing.min()) > 0:
+                    missing_individual = missing_ind(df, samples)
+                    indiv_table = table_indiv(popfile,samples)
+                    indiv_table.index = indiv_table.Individual
+                    indiv_table = pd.concat([indiv_table, missing_individual], axis=1, sort=False, join='inner')
+                    indiv_table.rename(columns = {0:"Missing"}, inplace=True)
+            
+                    tablepop = indiv_table.replace('./.', np.NaN)
+                    del indiv_table
+    
+                    if len(tablepop) > 0:
+                        fig = draw_missing_pop(plot, tablepop)
+                    if fig:
+                        fig['layout'].update(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))
+                        return html.Div([dcc.Graph(figure=fig)])
+                    else:
+                        layout = dict(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))     
+                        return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
                 else:
                     layout = dict(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))     
-                    return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                    return html.Div([dcc.Graph(figure=dict(layout=layout))])
+            else:
+                layout = dict(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))     
+                return html.Div([dcc.Graph(figure=dict(layout=layout))])
 
         elif plot == "Reference allele frequency":
 
@@ -1603,14 +1683,18 @@ def load_distribution_graph(plot, jsonified_dataframe, samples, popfile, valueDP
                         hwe[name_col2] = np.where(((counts_gt_snps['p0/0exp'] != 0) & (counts_gt_snps['p0/1exp'] != 0) & (counts_gt_snps['p1/1exp'] != 0) & (counts_gt_snps['p0/0obs'] != 0) & (counts_gt_snps['p0/1obs'] != 0) & (counts_gt_snps['p1/1obs'] != 0)), chisquare([counts_gt_snps['p0/0exp'], counts_gt_snps['p0/1exp'], counts_gt_snps['p1/1exp']], f_exp=[counts_gt_snps['p0/0obs'], counts_gt_snps['p0/1obs'], counts_gt_snps['p1/1obs']])[1], np.NaN)
 
                         del counts_gt_snps
-                #print(hwe)
-                fig = draw_hwe(plot, hwe, pops)
-                if fig:
-                    fig['layout'].update(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
-                    return html.Div([dcc.Graph(figure=fig)])
+                if hwe.dropna().empty == False:
+                    fig = draw_hwe(plot, hwe, pops)
+                    if fig:
+                        fig['layout'].update(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
+                        return html.Div([dcc.Graph(figure=fig)])
+                    else:
+                        layout = dict(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
+                        return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
                 else:
                     layout = dict(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
-                    return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                    return html.Div([dcc.Graph(figure=dict(layout=layout))])
+
 
         elif plot == "Inbreeding coefficient":
 
