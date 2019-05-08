@@ -93,7 +93,7 @@ SAMPLE11	POP3
 
 When the inputs are uploaded, the type of mutations to analyze must be selected before starting the analysis. 
 
-![img1](https://user-images.githubusercontent.com/30473077/57375744-7f898080-719e-11e9-8fbe-59ecd28b87be.png)
+![img1b](https://user-images.githubusercontent.com/30473077/57376107-81077880-719f-11e9-8ab3-7b3675d4c705.png)
 
 
 Then, the table from the VCF will be displayed. In that moment, we can filter the sample depth, mapping quality or missing data using the sliders.
