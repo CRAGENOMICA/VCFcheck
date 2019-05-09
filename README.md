@@ -111,7 +111,7 @@ When the inputs are uploaded, the type of mutations to analyze must be selected 
 
 &nbsp;
   
-Then, the table from the VCF and a summary will be displayed. In that moment, it is possible to filter the file by sample depth, mapping quality or missing data using the corresponding sliders.
+Then, the table from the VCF and a summary (with warnings about possible biases in the VCF) will be displayed. In that moment, it is possible to filter the file by sample depth, mapping quality or missing data using the corresponding sliders.
 
 ![img2](https://user-images.githubusercontent.com/30473077/57376314-fd9a5700-719f-11e9-91b1-78f81253aaf6.png)
 &nbsp;
