@@ -1094,12 +1094,12 @@ def showing_table(samples,valueDP,valueMQ,valueMiss,type_snps):
             if 'MQ' in df.columns:
                 df = df.loc[(df['MQ'] >= valueMQ[0]) & (df['MQ'] <= valueMQ[1])]
     
-            df = df.loc[(df['Missing'] <= valueMiss)]
+        df = df.loc[(df['Missing'] <= valueMiss)]
 
         ## Convert the filtered DataFrame into Json table:
         #df_json = df.to_json(date_format='iso', orient='table')
             #feather.write_dataframe(df, 'df2.feather')
-        df.to_feather('df2.feather')
+        df.reset_index().to_feather('df2.feather')
         print('3:' + str(time.time()))
         return generate_table(df)#, df_json
 
@@ -1122,6 +1122,12 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
 
         if df_list_avg_dp_gt.empty == False:
             if popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == False):
+                warning_proportion = ""
+                warning_missing = ""
+                warning_multi = ""
+                if nsnpsmulti > nsnpsbi:
+                    warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
@@ -1135,9 +1141,27 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                     dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
                     dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
                     dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
+                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) < 0:
+                        if warning_proportion == "":
+                            warning_proportion += 'Higher proportion of alternative allele in ' + dict_perc_gt[i]['Population']
+                        else:
+                            warning_proportion += ', ' + dict_perc_gt[i]['Population']
+                if warning_proportion != "":
+                    warning_proportion += '!!'
+
+                for p in df_list_avg_miss['Population']:
+                    if float(df_list_avg_miss.set_index('Population').loc[p,'Missing'].replace('%', '')) > 30:
+                        if warning_missing == "":
+                            warning_missing += 'Missing in ' + p
+                        else:
+                            warning_missing += ', ' + p
+                if warning_missing != "":
+                    warning_missing += ' higher than 30%!!'
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div('- Average missing per population:'),
@@ -1152,6 +1176,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_missing,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Average depth by genotype:'),
                             html.Div([
                                 dash_table.DataTable(
@@ -1176,10 +1201,14 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
-                            html.Hr(),
-                            html.Div('- Possible biases in the VCF:'),
+                            html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
+                warning_proportion = ""
+                warning_multi = ""
+                if nsnpsmulti > nsnpsbi:
+                    warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
@@ -1193,9 +1222,18 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                     dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
                     dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
                     dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
+                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) < 0:
+                        if warning_proportion == "":
+                            warning_proportion += 'Higher proportion of alternative allele in ' + dict_perc_gt[i]['Population']
+                        else:
+                            warning_proportion += ', ' + dict_perc_gt[i]['Population']
+                if warning_proportion != "":
+                    warning_proportion += '!!'
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div('- Average depth by genotype:'),
@@ -1221,12 +1259,28 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                         'maxHeight': '600',  
                                     },
                                 ),
-                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'})
+                            ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == True) and (df_list_avg_miss.empty == False):
+                warning_missing = ""
+                warning_multi = ""
+                if nsnpsmulti > nsnpsbi:
+                    warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
+                for p in df_list_avg_miss['Population']:
+                    if float(df_list_avg_miss.set_index('Population').loc[p,'Missing'].replace('%', '')) > 30:
+                        if warning_missing == "":
+                            warning_missing += 'Missing in ' + p
+                        else:
+                            warning_missing += ', ' + p
+                if warning_missing != "":
+                    warning_missing += ' higher than 30%!!'
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div('- Average missing per population:'),
@@ -1241,6 +1295,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_missing,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Average depth by genotype:'),
                             html.Div([
                                 dash_table.DataTable(
@@ -1259,6 +1314,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div('- Average depth by genotype:'),
@@ -1279,6 +1335,11 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
             if popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == False):
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
                 warning_proportion = ""
+                warning_missing = ""
+                warning_multi = ""
+                if nsnpsmulti > nsnpsbi:
+                    warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
                     dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
@@ -1291,14 +1352,27 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                     dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
                     dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
                     dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
-                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) > 0:
+                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) < 0:
                         if warning_proportion == "":
-                            warning_proportion += '    Higher proportion of alternative allele in ' + dict_perc_gt[i]['Population']
+                            warning_proportion += 'Higher proportion of alternative allele in ' + dict_perc_gt[i]['Population']
                         else:
                             warning_proportion += ', ' + dict_perc_gt[i]['Population']
+                if warning_proportion != "":
+                    warning_proportion += '!!'
+
+                for p in df_list_avg_miss['Population']:
+                    if float(df_list_avg_miss.set_index('Population').loc[p,'Missing'].replace('%', '')) > 30:
+                        if warning_missing == "":
+                            warning_missing += 'Missing in ' + p
+                        else:
+                            warning_missing += ', ' + p
+                if warning_missing != "":
+                    warning_missing += ' higher than 30%!!'
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div('- Average missing per population:'),
@@ -1313,6 +1387,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_missing,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Proportion of genotypes per population:'),
                             html.Div([
                                 dash_table.DataTable(
@@ -1325,12 +1400,15 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginLeft':'2em'}),
-                            html.Hr(),
-                            html.Div('- Possible biases in the VCF:'),
-                            html.Div(warning_proportion),
+                            html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                warning_proportion = ""
+                warning_multi = ""
+                if nsnpsmulti > nsnpsbi:
+                    warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
                     dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
@@ -1343,9 +1421,18 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                     dict_perc_gt[i]['2/3'] = dict_perc_gt[i].pop('_9')
                     dict_perc_gt[i]['3/3'] = dict_perc_gt[i].pop('_10')
                     dict_perc_gt[i]['./.'] = dict_perc_gt[i].pop('_11')
+                    if float(dict_perc_gt[i]['0/0'].replace('%', '')) - (float(dict_perc_gt[i]['1/1'].replace('%', ''))+float(dict_perc_gt[i]['1/2'].replace('%', ''))+float(dict_perc_gt[i]['2/2'].replace('%', ''))+float(dict_perc_gt[i]['1/3'].replace('%', ''))+float(dict_perc_gt[i]['2/3'].replace('%', ''))+float(dict_perc_gt[i]['3/3'].replace('%', ''))) < 0:
+                        if warning_proportion == "":
+                            warning_proportion += 'Higher proportion of alternative allele in ' + dict_perc_gt[i]['Population']
+                        else:
+                            warning_proportion += ', ' + dict_perc_gt[i]['Population']
+                if warning_proportion != "":
+                    warning_proportion += '!!'
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div('- Proportion of genotypes per population:'),
@@ -1359,12 +1446,28 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                         'maxHeight': '600',  
                                     },
                                 ),
-                            ], style={'marginTop':'1em', 'marginLeft':'2em'})
+                            ], style={'marginTop':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == True) and (df_list_avg_miss.empty == False):
+                warning_missing = ""
+                warning_multi = ""
+                if nsnpsmulti > nsnpsbi:
+                    warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
+                for p in df_list_avg_miss['Population']:
+                    if float(df_list_avg_miss.set_index('Population').loc[p,'Missing'].replace('%', '')) > 30:
+                        if warning_missing == "":
+                            warning_missing += 'Missing in ' + p
+                        else:
+                            warning_missing += ', ' + p
+                if warning_missing != "":
+                    warning_missing += ' higher than 30%!!'
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                             html.Div('- Average missing per population:'),
@@ -1379,11 +1482,16 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_missing,style={'color': 'red','padding-left':'2%'}),
                 ])
             else:
+                warning_multi = ""
+                if nsnpsmulti > nsnpsbi:
+                    warning_multi = "Greater number of multiallelic SNPs than biallelic"
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
+                            html.Div(warning_multi,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Number of INDELs = {}'.format(nindels)),
                             html.Div('- Number of homozigous positions = {}'.format(nrohs)),
                 ])
