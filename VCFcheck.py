@@ -8,6 +8,7 @@ import pandas as pd
 #import matplotlib.pyplot as plt
 #import feather
 from scipy.stats import chisquare
+from scipy.stats import zscore
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
@@ -1124,13 +1125,50 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
 
         if df_list_avg_dp_gt.empty == False:
             if popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == False):
+                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
                 warning_proportion = ""
                 warning_missing = ""
                 warning_multi = ""
                 if nsnpsmulti > nsnpsbi:
                     warning_multi = "Greater number of multiallelic SNPs than biallelic"
 
-                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                warning_dpgt1 = ""
+                warning_dpgt2 = ""
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) > 3)]['Genotype']:
+                    if warning_dpgt1 == "":
+                        warning_dpgt1 = "Greater depth than expected in genotype " + p
+                    else:
+                        warning_dpgt1 += ", " + p
+                if warning_dpgt1 != "":
+                    warning_dpgt1 += " (zscore > 3)"
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) < -3)]['Genotype']:
+                    if warning_dpgt2 == "":
+                        warning_dpgt2 = "Lower depth than expected in genotype " + p
+                    else:
+                        warning_dpgt2 += ", " + p
+                if warning_dpgt2 != "":
+                    warning_dpgt2 += " (zscore > 3)"
+
+                warning_diff_prop = ""
+                df_list_dict_perc_gt['0/0'] = df_list_dict_perc_gt['0/0'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/1'] = df_list_dict_perc_gt['0/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/1'] = df_list_dict_perc_gt['1/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/2'] = df_list_dict_perc_gt['0/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/2'] = df_list_dict_perc_gt['1/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/2'] = df_list_dict_perc_gt['2/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/3'] = df_list_dict_perc_gt['0/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/3'] = df_list_dict_perc_gt['1/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/3'] = df_list_dict_perc_gt['2/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['3/3'] = df_list_dict_perc_gt['3/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['./.'] = df_list_dict_perc_gt['./.'].str.replace('%','').astype(float)
+                for p in df_list_dict_perc_gt[(np.abs(zscore(df_list_dict_perc_gt.iloc[:,1:11])) > 3)]['Population']:
+                    if warning_diff_prop == "":
+                        warning_diff_prop = "Different frequency in at least one genotype in the population/s " + p
+                    else:
+                        warning_diff_prop += ", " + p
+                if warning_diff_prop != "":
+                    warning_diff_prop += " (zscore > 3)"
+
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
                     dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
@@ -1191,6 +1229,8 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_dpgt1,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_dpgt2,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Proportion of genotypes per population:'),
                             html.Div([
                                 dash_table.DataTable(
@@ -1204,14 +1244,52 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
                             html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_diff_prop,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
+                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
                 warning_proportion = ""
                 warning_multi = ""
                 if nsnpsmulti > nsnpsbi:
                     warning_multi = "Greater number of multiallelic SNPs than biallelic"
 
-                dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
+                warning_dpgt1 = ""
+                warning_dpgt2 = ""
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) > 3)]['Genotype']:
+                    if warning_dpgt1 == "":
+                        warning_dpgt1 = "Greater depth than expected in genotype " + p
+                    else:
+                        warning_dpgt1 += ", " + p
+                if warning_dpgt1 != "":
+                    warning_dpgt1 += " (zscore > 3)"
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) < -3)]['Genotype']:
+                    if warning_dpgt2 == "":
+                        warning_dpgt2 = "Lower depth than expected in genotype " + p
+                    else:
+                        warning_dpgt2 += ", " + p
+                if warning_dpgt2 != "":
+                    warning_dpgt2 += " (zscore > 3)"
+
+                warning_diff_prop = ""
+                df_list_dict_perc_gt['0/0'] = df_list_dict_perc_gt['0/0'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/1'] = df_list_dict_perc_gt['0/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/1'] = df_list_dict_perc_gt['1/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/2'] = df_list_dict_perc_gt['0/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/2'] = df_list_dict_perc_gt['1/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/2'] = df_list_dict_perc_gt['2/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/3'] = df_list_dict_perc_gt['0/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/3'] = df_list_dict_perc_gt['1/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/3'] = df_list_dict_perc_gt['2/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['3/3'] = df_list_dict_perc_gt['3/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['./.'] = df_list_dict_perc_gt['./.'].str.replace('%','').astype(float)
+                for p in df_list_dict_perc_gt[(np.abs(zscore(df_list_dict_perc_gt.iloc[:,1:11])) > 3)]['Population']:
+                    if warning_diff_prop == "":
+                        warning_diff_prop = "Different frequency in at least one genotype in the population/s " + p
+                    else:
+                        warning_diff_prop += ", " + p
+                if warning_diff_prop != "":
+                    warning_diff_prop += " (zscore > 3)"
+
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
                     dict_perc_gt[i]['0/1'] = dict_perc_gt[i].pop('_2')
@@ -1250,6 +1328,8 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_dpgt1,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_dpgt2,style={'color': 'red','padding-left':'2%'}),
                             html.Div('- Proportion of genotypes per population:'),
                             html.Div([
                                 dash_table.DataTable(
@@ -1263,6 +1343,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
                             html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_diff_prop,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == True) and (df_list_avg_miss.empty == False):
                 warning_missing = ""
@@ -1279,6 +1360,23 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                 if warning_missing != "":
                     warning_missing += ' higher than 30%!!'
 
+                warning_dpgt1 = ""
+                warning_dpgt2 = ""
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) > 3)]['Genotype']:
+                    if warning_dpgt1 == "":
+                        warning_dpgt1 = "Greater depth than expected in genotype " + p
+                    else:
+                        warning_dpgt1 += ", " + p
+                if warning_dpgt1 != "":
+                    warning_dpgt1 += " (zscore > 3)"
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) < -3)]['Genotype']:
+                    if warning_dpgt2 == "":
+                        warning_dpgt2 = "Lower depth than expected in genotype " + p
+                    else:
+                        warning_dpgt2 += ", " + p
+                if warning_dpgt2 != "":
+                    warning_dpgt2 += " (zscore > 3)"
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
@@ -1310,9 +1408,29 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_dpgt1,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_dpgt2,style={'color': 'red','padding-left':'2%'}),
                 ])
 
             else:
+
+                warning_dpgt1 = ""
+                warning_dpgt2 = ""
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) > 3)]['Genotype']:
+                    if warning_dpgt1 == "":
+                        warning_dpgt1 = "Greater depth than expected in genotype " + p
+                    else:
+                        warning_dpgt1 += ", " + p
+                if warning_dpgt1 != "":
+                    warning_dpgt1 += " (zscore > 3)"
+                for p in df_list_avg_dp_gt[(zscore(df_list_avg_dp_gt['Depth']) < -3)]['Genotype']:
+                    if warning_dpgt2 == "":
+                        warning_dpgt2 = "Lower depth than expected in genotype " + p
+                    else:
+                        warning_dpgt2 += ", " + p
+                if warning_dpgt2 != "":
+                    warning_dpgt2 += " (zscore > 3)"
+
                 return html.Div([
                             html.Div('- Number of biallelic SNPs = {}'.format(nsnpsbi)),
                             html.Div('- Number of multiallelic SNPs = {}'.format(nsnpsmulti)),
@@ -1331,6 +1449,8 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                     },
                                 ),
                             ], style={'marginTop':'1em', 'marginBottom':'1em', 'marginLeft':'2em'}),
+                            html.Div(warning_dpgt1,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_dpgt2,style={'color': 'red','padding-left':'2%'}),
                 ])
     
         else:
@@ -1341,6 +1461,26 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                 warning_multi = ""
                 if nsnpsmulti > nsnpsbi:
                     warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
+                warning_diff_prop = ""
+                df_list_dict_perc_gt['0/0'] = df_list_dict_perc_gt['0/0'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/1'] = df_list_dict_perc_gt['0/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/1'] = df_list_dict_perc_gt['1/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/2'] = df_list_dict_perc_gt['0/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/2'] = df_list_dict_perc_gt['1/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/2'] = df_list_dict_perc_gt['2/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/3'] = df_list_dict_perc_gt['0/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/3'] = df_list_dict_perc_gt['1/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/3'] = df_list_dict_perc_gt['2/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['3/3'] = df_list_dict_perc_gt['3/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['./.'] = df_list_dict_perc_gt['./.'].str.replace('%','').astype(float)
+                for p in df_list_dict_perc_gt[(np.abs(zscore(df_list_dict_perc_gt.iloc[:,1:11])) > 3)]['Population']:
+                    if warning_diff_prop == "":
+                        warning_diff_prop = "Different frequency in at least one genotype in the population/s " + p
+                    else:
+                        warning_diff_prop += ", " + p
+                if warning_diff_prop != "":
+                    warning_diff_prop += " (zscore > 3)"
 
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
@@ -1403,6 +1543,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                 ),
                             ], style={'marginTop':'1em', 'marginLeft':'2em'}),
                             html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_diff_prop,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == False) and (df_list_avg_miss.empty == True):
                 dict_perc_gt = df_list_dict_perc_gt.to_dict(orient='records')
@@ -1410,6 +1551,26 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                 warning_multi = ""
                 if nsnpsmulti > nsnpsbi:
                     warning_multi = "Greater number of multiallelic SNPs than biallelic"
+
+                warning_diff_prop = ""
+                df_list_dict_perc_gt['0/0'] = df_list_dict_perc_gt['0/0'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/1'] = df_list_dict_perc_gt['0/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/1'] = df_list_dict_perc_gt['1/1'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/2'] = df_list_dict_perc_gt['0/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/2'] = df_list_dict_perc_gt['1/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/2'] = df_list_dict_perc_gt['2/2'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['0/3'] = df_list_dict_perc_gt['0/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['1/3'] = df_list_dict_perc_gt['1/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['2/3'] = df_list_dict_perc_gt['2/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['3/3'] = df_list_dict_perc_gt['3/3'].str.replace('%','').astype(float)
+                df_list_dict_perc_gt['./.'] = df_list_dict_perc_gt['./.'].str.replace('%','').astype(float)
+                for p in df_list_dict_perc_gt[(np.abs(zscore(df_list_dict_perc_gt.iloc[:,1:11])) > 3)]['Population']:
+                    if warning_diff_prop == "":
+                        warning_diff_prop = "Different frequency in at least one genotype in the population/s " + p
+                    else:
+                        warning_diff_prop += ", " + p
+                if warning_diff_prop != "":
+                    warning_diff_prop += " (zscore > 3)"
 
                 for i in range(0,len(dict_perc_gt)):
                     dict_perc_gt[i]['0/0'] = dict_perc_gt[i].pop('_1')
@@ -1450,6 +1611,7 @@ def summary_stats(nsnpsbi,popfile,nsnpsmulti,nindels,nrohs,json_list_avg_miss,js
                                 ),
                             ], style={'marginTop':'1em', 'marginLeft':'2em'}),
                             html.Div(warning_proportion,style={'color': 'red','padding-left':'2%'}),
+                            html.Div(warning_diff_prop,style={'color': 'red','padding-left':'2%'}),
                 ])
             elif popfile and (df_list_dict_perc_gt.empty == True) and (df_list_avg_miss.empty == False):
                 warning_missing = ""
