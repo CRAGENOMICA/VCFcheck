@@ -1101,7 +1101,9 @@ def showing_table(samples,valueDP,valueMQ,valueMiss,type_snps):
             #feather.write_dataframe(df, 'df2.feather')
         df.reset_index().to_feather('df2.feather')
         print('3:' + str(time.time()))
-        return generate_table(df)#, df_json
+
+        if (os.path.getsize('df.feather') < 100000000):
+            return generate_table(df)#, df_json
 
 ## Display the summary statistics of the filtered VCF
 @app.callback(Output('summary', 'children'),
@@ -1607,10 +1609,10 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                     return html.Div([dcc.Graph(figure=fig)])
                 else:
                     layout = dict(title = 'Missing by SNP', xaxis=dict(title='Percentage of missing data'))
-                    return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                    return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of missing',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
             else:
                 layout = dict(title = 'Missing by SNP', xaxis=dict(title='Percentage of missing data'))
-                return html.Div([dcc.Graph(figure=dict(layout=layout))])
+                return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of missing because all SNPs have the same missing (' + str(int(df.Missing.max())) + '%)',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
         elif plot == "Missing by Population":
 
@@ -1633,13 +1635,13 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                         return html.Div([dcc.Graph(figure=fig)])
                     else:
                         layout = dict(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))     
-                        return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                        return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of missing',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
                 else:
                     layout = dict(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))     
-                    return html.Div([dcc.Graph(figure=dict(layout=layout))])
+                    return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of missing because all SNPs have the same missing (' + str(int(df.Missing.max())) + '%)',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
             else:
                 layout = dict(title = 'Missing by Population', xaxis=dict(title='Percentage of missing data'))     
-                return html.Div([dcc.Graph(figure=dict(layout=layout))])
+                return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of missing because the Population file is not uploaded',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
         elif plot == "Reference allele frequency":
 
@@ -1670,7 +1672,7 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                 return html.Div([dcc.Graph(figure=fig)])
             else:
                 layout = dict(title = 'Reference allele frequency', xaxis=dict(title='Frequency'))     
-                return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of the reference allele frequency',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
         elif plot == "Depth by individual":
 
@@ -1682,7 +1684,7 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                 return html.Div([dcc.Graph(figure=fig)])
             else:
                 layout = dict(title = 'Depth by individual', xaxis=dict(title='Depth'))
-                return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of depth for lack of information',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
         elif plot == "Depth by genotype":
 
@@ -1694,15 +1696,17 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                 return html.Div([dcc.Graph(figure=fig)])
             else:
                 layout = dict(title = 'Depth by genotype', xaxis=dict(title='Depth'))
-                return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of depth for lack of information',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
         elif plot == "Count genotypes per Depth":
 
             ## Count number of each genotype by depth
             data = draw_depth_vs_gt(plot, df, samples, valueDP)
             layout = go.Layout(barmode='stack', title = 'Count of genotypes per sample depth', xaxis=dict(title='Sample depth',type='category'), yaxis=dict(title='Count of genotypes'))
-
-            return html.Div([dcc.Graph(figure=dict(data=[n for n in data], layout=layout))])
+            if data:
+                return html.Div([dcc.Graph(figure=dict(data=[n for n in data], layout=layout))])
+            else:
+                return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to display the distribution of depth for lack of information',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
         elif plot == "Principal Component Analyisis (PCA)":
 
@@ -1761,7 +1765,10 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                 layout = dict(title = 'PCA decomposition', xaxis=dict(title='PC 1'), yaxis=dict(title='PC 2'))
                 data = draw_pca(plot, finalDf)
 
-                return html.Div([dcc.Graph(figure=dict(data=[n for n in data], layout=layout))])
+                if data:
+                    return html.Div([dcc.Graph(figure=dict(data=[n for n in data], layout=layout))])
+                else:
+                    return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to perform the PCA',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
         elif plot == "Hardy-Weinberg test":
 
@@ -1773,6 +1780,8 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
 
                 indiv_table = table_indiv(popfile,samples)
                 pops = indiv_table['Population'].unique()
+
+                warning_hw = ""
 
                 for pop in pops:
                     if samples[0] + '_GT' in df.columns:
@@ -1800,19 +1809,29 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                         ## p-Value of Hardy-Weinberg test:
                         name_col2 = 'HWE_pval_' + pop
                         hwe[name_col2] = np.where(((counts_gt_snps['p0/0exp'] != 0) & (counts_gt_snps['p0/1exp'] != 0) & (counts_gt_snps['p1/1exp'] != 0) & (counts_gt_snps['p0/0obs'] != 0) & (counts_gt_snps['p0/1obs'] != 0) & (counts_gt_snps['p1/1obs'] != 0)), chisquare([counts_gt_snps['p0/0exp'], counts_gt_snps['p0/1exp'], counts_gt_snps['p1/1exp']], f_exp=[counts_gt_snps['p0/0obs'], counts_gt_snps['p0/1obs'], counts_gt_snps['p1/1obs']])[1], np.NaN)
+                        
+                        if hwe[name_col2].mean() < 0.05:
+                            if warning_hw == "":
+                                warning_hw = "Population/s " + pop
+                            else:
+                                warning_hw += ", " + pop
 
                         del counts_gt_snps
+
+                if warning_hw != "":
+                    warning_hw += " is/are not in HW equilibrium"
+
                 if hwe.dropna().empty == False:
                     fig = draw_hwe(plot, hwe, pops)
                     if fig:
                         fig['layout'].update(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
-                        return html.Div([dcc.Graph(figure=fig)])
+                        return html.Div([dcc.Graph(figure=fig), html.Div(warning_hw,style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
                     else:
                         layout = dict(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
-                        return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                        return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to perform the HWE analysis',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
                 else:
                     layout = dict(title = 'HWE p-value by population', xaxis=dict(title='p-Value'))
-                    return html.Div([dcc.Graph(figure=dict(layout=layout))])
+                    return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to perform the HWE analysis',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
 
         elif plot == "Inbreeding coefficient":
@@ -1848,7 +1867,7 @@ def load_distribution_graph(plot, samples, popfile, valueDP):
                     return html.Div([dcc.Graph(figure=fig)])
                 else:
                     layout = dict(title = 'Inbreeding coefficient by population', xaxis=dict(title='Inbreeding coefficient'))
-                    return html.Div([dcc.Graph(figure=dict(data=fig, layout=layout))])
+                    return html.Div([dcc.Graph(figure=dict(layout=layout)), html.Div('It is not possible to obtain the Inbreeding coefficient',style={'color': 'red','padding-left':'3%','padding-bottom':'2%'})])
 
 # start Flask server
 if __name__ == '__main__':
